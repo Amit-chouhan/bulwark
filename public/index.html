@@ -87,16 +87,24 @@
 
     /* Kanban */
     .kanban { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; }
-    .kanban-col { min-width: 220px; flex: 1; background: var(--bg2); border: 1px solid var(--bg3); border-radius: 8px; }
+    .kanban-col { min-width: 220px; flex: 1; background: var(--bg2); border: 1px solid var(--bg3); border-radius: 8px; transition: border-color 0.2s; }
+    .kanban-col.drag-over { border-color: var(--cyan); background: rgba(34,211,238,0.05); }
     .kanban-col-header { padding: 10px 12px; border-bottom: 1px solid var(--bg3); display: flex; align-items: center; justify-content: space-between; }
     .kanban-col-title { font-size: 12px; font-weight: 600; text-transform: uppercase; }
     .kanban-col-count { font-size: 11px; color: var(--text3); background: var(--bg3); padding: 1px 6px; border-radius: 8px; }
-    .kanban-cards { padding: 8px; max-height: 60vh; overflow-y: auto; }
-    .kanban-card { background: var(--bg); border: 1px solid var(--bg3); border-radius: 6px; padding: 10px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s; }
+    .kanban-cards { padding: 8px; max-height: 60vh; overflow-y: auto; min-height: 60px; }
+    .kanban-card { background: var(--bg); border: 1px solid var(--bg3); border-radius: 6px; padding: 10px; margin-bottom: 8px; cursor: grab; transition: all 0.15s; }
     .kanban-card:hover { border-color: var(--cyan); }
+    .kanban-card.dragging { opacity: 0.4; transform: scale(0.95); }
     .kanban-card-title { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
     .kanban-card-meta { font-size: 10px; color: var(--text3); }
-    .kanban-card-actions { display: flex; gap: 6px; margin-top: 8px; }
+    .kanban-card-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+    .kanban-card-desc { font-size: 11px; color: var(--text2); margin-top: 6px; max-height: 0; overflow: hidden; transition: max-height 0.3s; }
+    .kanban-card.expanded .kanban-card-desc { max-height: 200px; }
+    .kanban-card-source { font-size: 9px; color: var(--text3); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .btn-icon { background: none; border: 1px solid var(--bg3); color: var(--text3); cursor: pointer; padding: 2px 6px; border-radius: 4px; font-size: 10px; transition: all 0.15s; }
+    .btn-icon:hover { border-color: var(--cyan); color: var(--cyan); }
+    .btn-icon.btn-delete:hover { border-color: var(--red); color: var(--red); }
 
     /* Terminal */
     #terminal-container { height: calc(100vh - 160px); background: #000; border-radius: 8px; overflow: hidden; }
@@ -627,33 +635,100 @@ function renderKanban(tickets) {
   kanban.innerHTML = cols.map(col => {
     const colTickets = tickets.filter(t => t.fix_status === col.key);
     return `
-      <div class="kanban-col">
+      <div class="kanban-col" data-status="${col.key}"
+           ondragover="kanbanDragOver(event)" ondragleave="kanbanDragLeave(event)" ondrop="kanbanDrop(event)">
         <div class="kanban-col-header">
           <span class="kanban-col-title" style="color:var(--${col.color})">${col.label}</span>
           <span class="kanban-col-count">${colTickets.length}</span>
         </div>
         <div class="kanban-cards">
-          ${colTickets.length === 0 ? '<div style="text-align:center;color:var(--text3);font-size:11px;padding:16px">No tickets</div>' : ''}
-          ${colTickets.map(t => `
-            <div class="kanban-card">
+          ${colTickets.length === 0 ? '<div class="kanban-empty" style="text-align:center;color:var(--text3);font-size:11px;padding:16px">Drop tickets here</div>' : ''}
+          ${colTickets.map(t => {
+            const desc = t.issue_description || t.fix_notes || '';
+            const src = t._source === 'vps' ? 'VPS' : 'DEV';
+            return `
+            <div class="kanban-card" draggable="true" data-id="${t.id}"
+                 ondragstart="kanbanDragStart(event)" ondragend="kanbanDragEnd(event)"
+                 onclick="toggleTicketExpand(this)">
               <div class="kanban-card-title">${esc(t.subject || t.issue_type || 'Untitled')}</div>
               <div class="kanban-card-meta">
                 ${t.priority ? `<span class="badge badge-${t.priority === 'high' || t.priority === 'critical' ? 'red' : t.priority === 'medium' ? 'yellow' : 'blue'}">${t.priority}</span>` : ''}
                 ${t.fix_branch ? `<span style="color:var(--cyan);margin-left:4px">${esc(t.fix_branch)}</span>` : ''}
+                <span class="kanban-card-source">${src}</span>
               </div>
-              ${t.fix_notes ? `<div style="font-size:10px;color:var(--text3);margin-top:4px;max-height:40px;overflow:hidden">${esc(t.fix_notes)}</div>` : ''}
-              ${col.key === 'awaiting_approval' ? `
-                <div class="kanban-card-actions">
-                  <button class="btn btn-sm btn-success" onclick="approveTicket('${t.id}')">Approve</button>
-                  <button class="btn btn-sm btn-danger" onclick="rejectTicket('${t.id}')">Reject</button>
-                </div>
-              ` : ''}
-            </div>
-          `).join('')}
+              ${desc ? `<div class="kanban-card-desc">${esc(desc)}</div>` : ''}
+              <div class="kanban-card-actions">
+                ${col.key === 'awaiting_approval' ? `
+                  <button class="btn btn-sm btn-success" onclick="event.stopPropagation();approveTicket('${t.id}')">Approve</button>
+                  <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();rejectTicket('${t.id}')">Reject</button>
+                ` : `
+                  <button class="btn-icon" onclick="event.stopPropagation();moveTicket('${t.id}','${col.key}',-1)" title="Move left">◀</button>
+                  <button class="btn-icon" onclick="event.stopPropagation();moveTicket('${t.id}','${col.key}',1)" title="Move right">▶</button>
+                `}
+                <button class="btn-icon btn-delete" onclick="event.stopPropagation();deleteTicket('${t.id}')" title="Delete">✕</button>
+              </div>
+            </div>`;
+          }).join('')}
         </div>
       </div>
     `;
   }).join('');
+}
+
+// Drag and drop
+let dragTicketId = null;
+function kanbanDragStart(e) {
+  dragTicketId = e.target.dataset.id;
+  e.target.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+function kanbanDragEnd(e) {
+  e.target.classList.remove('dragging');
+  document.querySelectorAll('.kanban-col').forEach(c => c.classList.remove('drag-over'));
+}
+function kanbanDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const col = e.target.closest('.kanban-col');
+  if (col) col.classList.add('drag-over');
+}
+function kanbanDragLeave(e) {
+  const col = e.target.closest('.kanban-col');
+  if (col) col.classList.remove('drag-over');
+}
+function kanbanDrop(e) {
+  e.preventDefault();
+  const col = e.target.closest('.kanban-col');
+  if (!col || !dragTicketId) return;
+  col.classList.remove('drag-over');
+  const newStatus = col.dataset.status;
+  changeTicketStatus(dragTicketId, newStatus);
+  dragTicketId = null;
+}
+
+function toggleTicketExpand(el) { el.classList.toggle('expanded'); }
+
+const statusFlow = ['pending','analyzing','fixing','testing','awaiting_approval','approved','deployed'];
+function moveTicket(id, current, dir) {
+  const idx = statusFlow.indexOf(current);
+  const next = statusFlow[idx + dir];
+  if (next) changeTicketStatus(id, next);
+}
+
+async function changeTicketStatus(id, newStatus) {
+  try {
+    await fetch(`/api/tickets/${id}/status`, {
+      method: 'PATCH', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ fix_status: newStatus })
+    });
+  } catch (e) { console.error('Status update failed:', e); }
+}
+
+async function deleteTicket(id) {
+  if (!confirm('Delete this ticket permanently?')) return;
+  try {
+    await fetch(`/api/tickets/${id}`, { method: 'DELETE' });
+  } catch (e) { console.error('Delete failed:', e); }
 }
 
 function updateActivity(activity) {
@@ -662,14 +737,15 @@ function updateActivity(activity) {
   if (!feed) return;
 
   feed.innerHTML = (activity || []).slice(0, 15).map(a => {
-    const color = a.activity_type?.includes('error') ? 'var(--red)' :
-                  a.activity_type?.includes('claude') ? 'var(--cyan)' :
-                  a.activity_type?.includes('ticket') ? 'var(--purple)' :
-                  a.activity_type?.includes('deploy') ? 'var(--green)' : 'var(--text3)';
+    const t = a.type || '';
+    const color = t.includes('error') ? 'var(--red)' :
+                  t.includes('claude') ? 'var(--cyan)' :
+                  t.includes('ticket') ? 'var(--purple)' :
+                  t.includes('deploy') ? 'var(--green)' : 'var(--text3)';
     return `
       <div class="activity-item">
         <div class="activity-dot" style="background:${color}"></div>
-        <div class="desc">${esc(a.description || a.activity_type || '')}</div>
+        <div class="desc">${esc(a.title || a.description || a.type || '')}</div>
         <div class="time">${timeAgo(a.created_at)}</div>
       </div>
     `;
