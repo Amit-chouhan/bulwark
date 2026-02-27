@@ -640,6 +640,19 @@ async function getTicketSummary() {
     if (!localIds.has(vt.id)) merged.push(vt);
   }
 
+  // Normalize fix_status: map DB status to kanban columns
+  // open/null → pending, resolved → deployed, in_progress → fixing
+  for (const t of merged) {
+    if (!t.fix_status) {
+      if (t.status === "resolved") t.fix_status = "deployed";
+      else t.fix_status = "pending";
+    }
+    // Use issue_description as display text when subject is generic
+    if (!t.subject || t.subject === t.issue_type) {
+      t.subject = t.issue_description?.substring(0, 120) || t.issue_type || "Untitled";
+    }
+  }
+
   // Sort by fix_status priority, then by date
   const statusOrder = { pending: 1, analyzing: 2, fixing: 3, testing: 4, awaiting_approval: 5, approved: 6, deployed: 7 };
   merged.sort((a, b) => {
@@ -652,8 +665,7 @@ async function getTicketSummary() {
   // Build summary from merged
   const counts = {};
   for (const t of merged) {
-    const s = t.fix_status || t.status || "open";
-    counts[s] = (counts[s] || 0) + 1;
+    counts[t.fix_status] = (counts[t.fix_status] || 0) + 1;
   }
   const summary = Object.entries(counts).map(([fix_status, count]) => ({ fix_status, count }));
 
