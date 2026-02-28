@@ -187,13 +187,15 @@ function parseCookies(cookieHeader) {
 // ── Database ─────────────────────────────────────────────────────────────────
 let pool = null;
 if (DB_URL) {
-  pool = new Pool({ connectionString: DB_URL, ssl: { rejectUnauthorized: false } });
+  const dbSSL = DB_URL.includes("supabase.com") || DB_URL.includes("supabase.co") || process.env.DB_SSL === "true";
+  pool = new Pool({ connectionString: DB_URL, ssl: dbSSL ? { rejectUnauthorized: false } : false });
 }
 
 // VPS production DB — read-only access for ticket syncing
 let vpsPool = null;
 if (VPS_DB_URL) {
-  vpsPool = new Pool({ connectionString: VPS_DB_URL, ssl: { rejectUnauthorized: false } });
+  const vpsSSL = VPS_DB_URL.includes("supabase.com") || VPS_DB_URL.includes("supabase.co") || process.env.VPS_DB_SSL === "true";
+  vpsPool = new Pool({ connectionString: VPS_DB_URL, ssl: vpsSSL ? { rejectUnauthorized: false } : false });
 }
 
 async function dbQuery(sql, params = []) {

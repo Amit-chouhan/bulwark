@@ -1,0 +1,33 @@
+services:
+  monitor-app:
+    build:
+      context: .
+    container_name: monitor-app
+    ports:
+      - "127.0.0.1:3001:3001"
+    environment:
+      - MONITOR_PORT=3001
+      - DATABASE_URL=${DATABASE_URL:-postgresql://chester_admin:${DB_PASSWORD:-chester_dev_pass}@chester-db:5432/chester}
+      - VPS_DATABASE_URL=${VPS_DATABASE_URL:-}
+      - MONITOR_USER=${MONITOR_USER:-admin}
+      - MONITOR_PASS=${MONITOR_PASS:-chester2026}
+      - REPO_DIR=/repo
+    volumes:
+      - ./users.json:/app/users.json
+    restart: unless-stopped
+    networks:
+      - monitor-net
+      - chester-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  monitor-net:
+    driver: bridge
+    name: monitor-net
+  chester-net:
+    external: true
+    name: admin-net
