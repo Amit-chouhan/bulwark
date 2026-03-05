@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { execCommand } = require("../lib/exec");
+const { getProjectPool, readProjects } = require("../lib/db");
 
 const DATA_DIR = path.join(__dirname, "..", "data");
 const HISTORY_FILE = path.join(DATA_DIR, "query-history.json");
@@ -20,10 +21,25 @@ function writeJSON(file, data) {
 module.exports = function (app, ctx) {
   const { pool, vpsPool, requireAdmin, REPO_DIR } = ctx;
 
-  // Resolve which pool to use
+  // Resolve which pool to use — project takes priority over legacy pool param
   function getPool(req) {
+    if (req.query.project) {
+      const p = getProjectPool(req.query.project);
+      if (p) return p;
+    }
     if (req.query.pool === "vps" && vpsPool) return vpsPool;
     return pool;
+  }
+
+  // Resolve raw database URL for pg_dump/psql commands (not a pool)
+  function resolveDbUrl(req) {
+    if (req.query.project) {
+      const projects = readProjects();
+      const proj = projects.find(p => p.id === req.query.project);
+      if (proj) return proj.url;
+    }
+    if (req.query.pool === "vps") return process.env.VPS_DATABASE_URL || "";
+    return process.env.DATABASE_URL || "";
   }
 
   async function runQuery(p, sql, params = []) {
@@ -594,8 +610,8 @@ module.exports = function (app, ctx) {
   });
 
   app.post("/api/db/backup", requireAdmin, async (req, res) => {
-    const dbUrl = req.query.pool === "vps" ? process.env.VPS_DATABASE_URL : process.env.DATABASE_URL;
-    if (!dbUrl) return res.status(400).json({ error: "No database URL configured" });
+    const dbUrl = resolveDbUrl(req);
+    if (!dbUrl) return res.status(400).json({ error: "No database URL configured for this project" });
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, "").replace("T", "_").substring(0, 15);
     const filename = `backup_${timestamp}.sql`;
@@ -624,8 +640,8 @@ module.exports = function (app, ctx) {
     const filepath = path.join(BACKUPS_DIR, filename);
     if (!fs.existsSync(filepath)) return res.status(404).json({ error: "Backup file not found" });
 
-    const dbUrl = req.query.pool === "vps" ? process.env.VPS_DATABASE_URL : process.env.DATABASE_URL;
-    if (!dbUrl) return res.status(400).json({ error: "No database URL configured" });
+    const dbUrl = resolveDbUrl(req);
+    if (!dbUrl) return res.status(400).json({ error: "No database URL configured for this project" });
 
     try {
       const result = await execCommand(

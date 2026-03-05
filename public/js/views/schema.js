@@ -9,6 +9,15 @@
   var currentPool = 'dev';
   var cachedData = {};
 
+  // Reset stale data when project switches
+  if (window.DbProjects) window.DbProjects.onProjectChange(function () {
+    cachedData = {};
+    var content = document.getElementById('schema-content');
+    if (content) content.innerHTML = '';
+    var tabs = document.getElementById('schema-tabs');
+    if (tabs) tabs.innerHTML = '';
+  });
+
   Views.schema = {
     init: function () {
       var el = document.getElementById('view-schema');
@@ -16,16 +25,13 @@
       el.innerHTML =
         '<div class="section-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">' +
           '<div class="section-title">Schema Browser</div>' +
-          '<select id="schema-pool-select" onchange="schemaSetPool(this.value)" style="background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text-primary);font-size:11px">' +
-            '<option value="dev">Dev DB</option>' +
-            '<option value="vps">VPS DB</option>' +
-          '</select>' +
         '</div>' +
         '<div class="db-tabs" id="schema-tabs"></div>' +
         '<div id="schema-content" style="margin-top:0;border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;overflow:auto;max-height:calc(100vh - 200px)"></div>';
     },
 
     show: function () {
+      if (!window.DbHeader || !window.DbHeader.require()) return;
       cachedData = {};
       renderTabs();
       loadTab(activeTab);
@@ -68,7 +74,7 @@
     if (!el) return;
     el.innerHTML = '<div style="padding:16px;color:var(--text-tertiary)">Loading...</div>';
 
-    fetch('/api/db/' + tab + '?pool=' + currentPool)
+    fetch('/api/db/' + tab + '?' + dbParam())
       .then(function (r) { return r.json(); })
       .then(function (d) {
         var items = d[tab] || [];

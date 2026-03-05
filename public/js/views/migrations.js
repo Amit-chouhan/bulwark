@@ -9,6 +9,17 @@
   var diffResult = null;
   var currentPool = 'dev';
 
+  // Reset stale data when project switches
+  if (window.DbProjects) window.DbProjects.onProjectChange(function () {
+    migrations = []; diffResult = null;
+    var list = document.getElementById('mig-list');
+    if (list) list.innerHTML = '';
+    var diff = document.getElementById('mig-diff-section');
+    if (diff) diff.innerHTML = '';
+    var bar = document.getElementById('mig-status-bar');
+    if (bar) bar.innerHTML = 'Select a project to view migrations';
+  });
+
   Views.migrations = {
     init: function () {
       var el = document.getElementById('view-migrations');
@@ -17,10 +28,6 @@
         '<div class="section-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">' +
           '<div class="section-title">Migration Manager</div>' +
           '<div style="display:flex;gap:8px;align-items:center">' +
-            '<select id="mig-pool-select" onchange="migSetPool(this.value)" style="background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text-primary);font-size:11px">' +
-              '<option value="dev">Dev DB</option>' +
-              '<option value="vps">VPS DB</option>' +
-            '</select>' +
             '<button class="btn btn-sm" onclick="runSchemaDiff()">Schema Diff</button>' +
             '<button class="btn btn-sm btn-primary" onclick="runDockerTest()">Docker Test</button>' +
           '</div>' +
@@ -31,6 +38,7 @@
     },
 
     show: function () {
+      if (!window.DbHeader || !window.DbHeader.require()) return;
       loadMigrations();
     },
 
@@ -48,7 +56,7 @@
     var listEl = document.getElementById('mig-list');
     if (statusEl) statusEl.innerHTML = 'Loading migrations...';
 
-    fetch('/api/db/migrations?pool=' + currentPool)
+    fetch('/api/db/migrations?' + dbParam())
       .then(function (r) { return r.json(); })
       .then(function (d) {
         migrations = d.migrations || [];
@@ -122,7 +130,7 @@
       confirmLabel: 'Apply Migration',
       onConfirm: function () {
         Toast.info('Applying migration...');
-        fetch('/api/db/migrations/run?pool=' + currentPool, {
+        fetch('/api/db/migrations/run?' + dbParam(), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: name })
@@ -200,7 +208,7 @@
     if (!diffEl) return;
     diffEl.innerHTML = '<div style="padding:12px;color:var(--text-tertiary);font-size:11px">Running schema diff...</div>';
 
-    fetch('/api/db/migrations/diff?pool=' + currentPool, {
+    fetch('/api/db/migrations/diff?' + dbParam(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     })

@@ -84,6 +84,8 @@ require("./routes/servers")(app, ctx);
 require("./routes/docker")(app, ctx);
 require("./routes/databases")(app, ctx);
 require("./routes/db-studio")(app, ctx);
+require("./routes/db-projects")(app, ctx);
+require("./routes/db-assistant")(app, ctx);
 require("./routes/security")(app, ctx);
 require("./routes/ssl")(app, ctx);
 require("./routes/envvars")(app, ctx);

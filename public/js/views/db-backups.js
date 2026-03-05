@@ -7,6 +7,14 @@
 
   var currentPool = 'dev';
 
+  // Reset stale data when project switches
+  if (window.DbProjects) window.DbProjects.onProjectChange(function () {
+    var list = document.getElementById('backup-list');
+    if (list) list.innerHTML = '<div style="padding:16px;color:var(--text-tertiary);font-size:11px">Select a project to view backups</div>';
+    var status = document.getElementById('backup-status');
+    if (status) { status.style.display = 'none'; status.innerHTML = ''; }
+  });
+
   Views['db-backups'] = {
     init: function () {
       var el = document.getElementById('view-db-backups');
@@ -15,10 +23,6 @@
         '<div class="section-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">' +
           '<div class="section-title">Database Backups</div>' +
           '<div style="display:flex;gap:8px;align-items:center">' +
-            '<select id="backups-pool-select" onchange="backupsSetPool(this.value)" style="background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text-primary);font-size:11px">' +
-              '<option value="dev">Dev DB</option>' +
-              '<option value="vps">VPS DB</option>' +
-            '</select>' +
             '<button class="btn btn-sm btn-primary" onclick="createBackup()">Create Backup</button>' +
           '</div>' +
         '</div>' +
@@ -29,6 +33,7 @@
     },
 
     show: function () {
+      if (!window.DbHeader || !window.DbHeader.require()) return;
       loadBackups();
     },
 
@@ -84,7 +89,7 @@
     }
     Toast.info('Creating backup...');
 
-    fetch('/api/db/backup?pool=' + currentPool, { method: 'POST' })
+    fetch('/api/db/backup?' + dbParam(), { method: 'POST' })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d.error) {
@@ -120,7 +125,7 @@
           statusEl.innerHTML = '<span style="color:var(--cyan)">Restoring ' + esc(filename) + '...</span>';
         }
 
-        fetch('/api/db/backup/restore?pool=' + currentPool, {
+        fetch('/api/db/backup/restore?' + dbParam(), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ filename: filename })

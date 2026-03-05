@@ -9,6 +9,12 @@
   var tableSchema = {};
   var currentPool = 'dev';
 
+  // Reset stale data when project switches
+  if (window.DbProjects) window.DbProjects.onProjectChange(function () {
+    tableSchema = {};
+    updateProjectBadge();
+  });
+
   Views['sql-editor'] = {
     init: function () {
       var el = document.getElementById('view-sql-editor');
@@ -30,10 +36,7 @@
             // Main editor
             '<div class="sql-editor-main">' +
               '<div class="sql-toolbar">' +
-                '<select id="sql-pool-select" onchange="sqlSetPool(this.value)" title="Target database">' +
-                  '<option value="dev">Dev DB</option>' +
-                  '<option value="vps">VPS DB</option>' +
-                '</select>' +
+                '<div id="sql-project-badge" class="sql-project-badge" onclick="switchView(\'db-projects\')" title="Switch project in sidebar"></div>' +
                 '<button class="btn btn-sm btn-primary" onclick="sqlRunQuery()" title="Ctrl+Enter">Run</button>' +
                 '<button class="btn btn-sm" onclick="sqlAskClaude()" title="Ask Claude to generate SQL">Ask Claude</button>' +
                 '<button class="btn btn-sm" onclick="sqlSaveQuery()">Save</button>' +
@@ -62,6 +65,7 @@
     },
 
     show: function () {
+      if (!window.DbHeader || !window.DbHeader.require()) return;
       initEditor();
       loadSchema();
       loadHistory();
@@ -109,7 +113,7 @@
   }
 
   function loadSchema() {
-    fetch('/api/db/tables?pool=' + currentPool)
+    fetch('/api/db/tables?' + dbParam())
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d.tables) return;
@@ -120,7 +124,7 @@
         });
         // Fetch columns for autocomplete (batch via individual table detail)
         // For performance, get all columns at once
-        fetch('/api/db/query', {
+        fetch('/api/db/query?' + dbParam(), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sql: "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position" })
@@ -179,10 +183,14 @@
   var lastResults = null;
   var lastHistory = [];
 
-  window.sqlSetPool = function (pool) {
-    currentPool = pool;
-    loadSchema();
-  };
+  function updateProjectBadge() {
+    var badge = document.getElementById('sql-project-badge');
+    if (!badge) return;
+    var active = window.DbProjects && window.DbProjects.active ? window.DbProjects.active() : null;
+    badge.innerHTML = '<span class="db-project-dot" style="background:' + (active ? active.color : 'var(--text-tertiary)') + '"></span>' +
+      '<span>' + (active ? active.name : 'Default DB') + '</span>' +
+      '<svg viewBox="0 0 12 12" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-left:2px"><path d="M2 4l4 4 4-4"/></svg>';
+  }
 
   window.sqlRunQuery = function () {
     if (!editor) return;
@@ -193,7 +201,7 @@
     if (statusEl) statusEl.textContent = 'Running...';
 
     var isDDL = /^\s*(DROP|TRUNCATE|ALTER|CREATE)\s/i.test(sql);
-    var url = '/api/db/query?pool=' + currentPool;
+    var url = '/api/db/query?' + dbParam();
     if (isDDL) {
       if (!confirm('This is a DDL statement (CREATE/ALTER/DROP/TRUNCATE). Execute?')) return;
       url += '&allow_ddl=true';
@@ -240,7 +248,7 @@
         var status = document.getElementById('claude-sql-status');
         if (status) status.textContent = 'Generating...';
         btn.disabled = true;
-        fetch('/api/db/claude/generate?pool=' + currentPool, {
+        fetch('/api/db/claude/generate?' + dbParam(), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ prompt: prompt })

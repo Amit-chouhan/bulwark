@@ -1,6 +1,56 @@
 [
   {
     "sql": "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position",
+    "duration": 11,
+    "rows": 2725,
+    "rowCount": 2725,
+    "type": "SELECT",
+    "ts": "2026-03-05T17:20:08.099Z",
+    "user": "admin",
+    "pool": "dev"
+  },
+  {
+    "sql": "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position",
+    "duration": 104,
+    "rows": 347,
+    "rowCount": 347,
+    "type": "SELECT",
+    "ts": "2026-03-05T17:15:59.443Z",
+    "user": "admin",
+    "pool": "dev"
+  },
+  {
+    "sql": "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position",
+    "duration": 9,
+    "rows": 2725,
+    "rowCount": 2725,
+    "type": "SELECT",
+    "ts": "2026-03-05T17:07:14.368Z",
+    "user": "admin",
+    "pool": "dev"
+  },
+  {
+    "sql": "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position",
+    "duration": 7,
+    "rows": 2725,
+    "rowCount": 2725,
+    "type": "SELECT",
+    "ts": "2026-03-05T14:54:18.855Z",
+    "user": "admin",
+    "pool": "dev"
+  },
+  {
+    "sql": "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position",
+    "duration": 9,
+    "rows": 2725,
+    "rowCount": 2725,
+    "type": "SELECT",
+    "ts": "2026-03-05T14:54:18.049Z",
+    "user": "admin",
+    "pool": "dev"
+  },
+  {
+    "sql": "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position",
     "duration": 7,
     "rows": 2725,
     "rowCount": 2725,

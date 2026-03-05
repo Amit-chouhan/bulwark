@@ -7,11 +7,21 @@
 
   var allTables = [];
   var selectedTable = null;
+  var cachedDetail = null;
   var activeTab = 'columns';
   var rowOffset = 0;
   var rowSort = '';
   var rowOrder = 'asc';
   var currentPool = 'dev';
+
+  // Reset stale data when project switches
+  if (window.DbProjects) window.DbProjects.onProjectChange(function () {
+    allTables = []; selectedTable = null; cachedDetail = null; activeTab = 'columns';
+    var detail = document.getElementById('table-detail');
+    if (detail) detail.innerHTML = '<div class="db-empty"><div class="db-empty-text">Select a table</div><div class="db-empty-sub">Click a table from the list to view its structure</div></div>';
+    var list = document.getElementById('table-list');
+    if (list) list.innerHTML = '';
+  });
 
   Views.tables = {
     init: function () {
@@ -23,10 +33,6 @@
           '<div class="db-panel-left">' +
             '<div class="db-panel-left-header">' +
               '<input type="text" id="table-filter" placeholder="Filter tables..." oninput="filterTableList()">' +
-              '<select id="tables-pool-select" onchange="tablesSetPool(this.value)" style="width:70px;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:6px;padding:4px;color:var(--text-primary);font-size:10px">' +
-                '<option value="dev">Dev</option>' +
-                '<option value="vps">VPS</option>' +
-              '</select>' +
             '</div>' +
             '<div class="db-panel-list" id="table-list"></div>' +
           '</div>' +
@@ -37,6 +43,8 @@
     },
 
     show: function () {
+      if (!window.DbHeader || !window.DbHeader.require()) return;
+      selectedTable = null;
       loadTableList();
       loadDbInfo();
     },
@@ -46,7 +54,7 @@
   };
 
   function loadDbInfo() {
-    fetch('/api/db/info?pool=' + currentPool)
+    fetch('/api/db/info?' + dbParam())
       .then(function (r) { return r.json(); })
       .then(function (d) {
         var el = document.getElementById('tables-info-bar');
@@ -68,7 +76,7 @@
     var el = document.getElementById('table-list');
     if (!el) return;
     el.innerHTML = '<div style="padding:12px;color:var(--text-tertiary);font-size:11px">Loading...</div>';
-    fetch('/api/db/tables?pool=' + currentPool)
+    fetch('/api/db/tables?' + dbParam())
       .then(function (r) { return r.json(); })
       .then(function (d) {
         allTables = d.tables || [];
@@ -121,7 +129,7 @@
     if (!detail) return;
     detail.innerHTML = '<div style="padding:16px;color:var(--text-tertiary);font-size:11px">Loading ' + esc(name) + '...</div>';
 
-    fetch('/api/db/tables/' + encodeURIComponent(name) + '?pool=' + currentPool)
+    fetch('/api/db/tables/' + encodeURIComponent(name) + '?' + dbParam())
       .then(function (r) { return r.json(); })
       .then(function (d) {
         renderDetail(name, d);
@@ -130,8 +138,6 @@
         detail.innerHTML = '<div style="padding:16px;color:var(--orange);font-size:11px">' + esc(e.message) + '</div>';
       });
   }
-
-  var cachedDetail = null;
 
   function renderDetail(name, d) {
     cachedDetail = d;
@@ -245,7 +251,7 @@
     var el = document.getElementById('table-tab-content');
     if (!el) return;
     var sortParam = rowSort ? '&sort=' + rowSort + '&order=' + rowOrder : '';
-    fetch('/api/db/tables/' + encodeURIComponent(name) + '/rows?pool=' + currentPool + '&limit=50&offset=' + rowOffset + sortParam)
+    fetch('/api/db/tables/' + encodeURIComponent(name) + '/rows?' + dbParam() + '&limit=50&offset=' + rowOffset + sortParam)
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (d.error) { el.innerHTML = '<div style="padding:12px;color:var(--orange)">' + esc(d.error) + '</div>'; return; }

@@ -100,6 +100,10 @@
             <svg class="chevron" width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M4.5 2L8.5 6L4.5 10" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
           </div>
           <div class="nav-group-items">
+            <div class="nav-item" data-view="db-projects" onclick="switchView('db-projects')">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" width="16" height="16" stroke-width="1.5"><rect x="2" y="3" width="16" height="5" rx="1.5"/><rect x="2" y="12" width="16" height="5" rx="1.5"/><circle cx="5.5" cy="5.5" r="1" fill="currentColor"/><circle cx="5.5" cy="14.5" r="1" fill="currentColor"/></svg>
+              <span>Projects</span>
+            </div>
             <div class="nav-item" data-view="sql-editor" onclick="switchView('sql-editor')">
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" width="16" height="16" stroke-width="1.5"><rect x="2" y="3" width="16" height="14" rx="2"/><polyline points="6 9 9 12 6 15"/><line x1="12" y1="15" x2="16" y2="15"/></svg>
               <span>SQL Editor</span>
@@ -123,6 +127,10 @@
             <div class="nav-item" data-view="db-backups" onclick="switchView('db-backups')">
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" width="16" height="16" stroke-width="1.5"><path d="M4 14l4-4m0 0l4 4m-4-4V2"/><rect x="2" y="14" width="16" height="4" rx="1"/></svg>
               <span>Backups</span>
+            </div>
+            <div class="nav-item" data-view="db-assistant" onclick="switchView('db-assistant')" style="border-top:1px solid var(--border);margin-top:4px;padding-top:8px">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" width="16" height="16" stroke-width="1.5"><path d="M10 2a6 6 0 016 6c0 2.2-1.2 4.1-3 5.2V15a1 1 0 01-1 1H8a1 1 0 01-1-1v-1.8C5.2 12.1 4 10.2 4 8a6 6 0 016-6z"/><line x1="8" y1="18" x2="12" y2="18"/><line x1="9" y1="12" x2="9" y2="15"/><line x1="11" y1="12" x2="11" y2="15"/></svg>
+              <span style="color:var(--cyan);font-weight:600">AI Assistant</span>
             </div>
           </div>
         </div>
@@ -236,6 +244,9 @@
         </div>
       </div>
 
+      <!-- DB Project Bar — shown only on DB Studio views -->
+      <div id="db-topbar" style="display:none"></div>
+
       <div class="content-area">
         <!-- View containers — each view JS populates its own div -->
         <div class="view active" id="view-dashboard"></div>
@@ -244,12 +255,14 @@
         <div class="view" id="view-servers"></div>
         <div class="view" id="view-docker"></div>
         <div class="view" id="view-databases"></div>
+        <div class="view" id="view-db-projects"></div>
         <div class="view" id="view-sql-editor"></div>
         <div class="view" id="view-tables"></div>
         <div class="view" id="view-schema"></div>
         <div class="view" id="view-migrations"></div>
         <div class="view" id="view-roles"></div>
         <div class="view" id="view-db-backups"></div>
+        <div class="view" id="view-db-assistant"></div>
         <div class="view" id="view-pm2"></div>
         <div class="view" id="view-ssl"></div>
         <div class="view" id="view-terminal"></div>
@@ -297,12 +310,14 @@
   <script src="/js/views/servers.js"></script>
   <script src="/js/views/docker.js"></script>
   <script src="/js/views/databases.js"></script>
+  <script src="/js/views/db-projects.js"></script>
   <script src="/js/views/sql-editor.js"></script>
   <script src="/js/views/tables.js"></script>
   <script src="/js/views/schema.js"></script>
   <script src="/js/views/migrations.js"></script>
   <script src="/js/views/roles.js"></script>
   <script src="/js/views/db-backups.js"></script>
+  <script src="/js/views/db-assistant.js"></script>
   <script src="/js/views/pm2.js"></script>
   <script src="/js/views/ssl.js"></script>
   <script src="/js/views/terminal.js"></script>

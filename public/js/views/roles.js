@@ -9,6 +9,15 @@
   var selectedRole = null;
   var currentPool = 'dev';
 
+  // Reset stale data when project switches
+  if (window.DbProjects) window.DbProjects.onProjectChange(function () {
+    roles = []; selectedRole = null;
+    var list = document.getElementById('roles-list');
+    if (list) list.innerHTML = '';
+    var detail = document.getElementById('roles-detail');
+    if (detail) detail.innerHTML = '<div class="db-empty"><div class="db-empty-text">Select a role</div></div>';
+  });
+
   Views.roles = {
     init: function () {
       var el = document.getElementById('view-roles');
@@ -16,10 +25,6 @@
       el.innerHTML =
         '<div class="section-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">' +
           '<div class="section-title">Roles & Permissions</div>' +
-          '<select id="roles-pool-select" onchange="rolesSetPool(this.value)" style="background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text-primary);font-size:11px">' +
-            '<option value="dev">Dev DB</option>' +
-            '<option value="vps">VPS DB</option>' +
-          '</select>' +
         '</div>' +
         '<div class="db-two-panel" style="height:calc(100vh - 160px)">' +
           '<div class="db-panel-left">' +
@@ -33,6 +38,7 @@
     },
 
     show: function () {
+      if (!window.DbHeader || !window.DbHeader.require()) return;
       loadRoles();
     },
 
@@ -51,7 +57,7 @@
     if (!el) return;
     el.innerHTML = '<div style="padding:12px;color:var(--text-tertiary);font-size:11px">Loading...</div>';
 
-    fetch('/api/db/roles?pool=' + currentPool)
+    fetch('/api/db/roles?' + dbParam())
       .then(function (r) { return r.json(); })
       .then(function (d) {
         roles = d.roles || [];
@@ -119,7 +125,7 @@
     var el = document.getElementById('role-perms-content');
     if (!el) return;
 
-    fetch('/api/db/roles/' + encodeURIComponent(name) + '/permissions?pool=' + currentPool)
+    fetch('/api/db/roles/' + encodeURIComponent(name) + '/permissions?' + dbParam())
       .then(function (r) { return r.json(); })
       .then(function (d) {
         var perms = d.permissions || {};
