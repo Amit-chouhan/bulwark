@@ -42,32 +42,42 @@ fi
 echo ""
 echo -e "${BOLD}Checking prerequisites...${NC}"
 
+install_node() {
+  if [[ "$OS" == "Linux" ]]; then
+    echo "  Installing Node.js 20 via NodeSource..."
+    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+    sudo apt-get install -y -qq nodejs
+  elif [[ "$OS" == "Darwin" ]]; then
+    if command -v brew &>/dev/null; then
+      echo "  Installing Node.js 20 via Homebrew..."
+      brew install node@20
+    else
+      echo "  Installing Node.js 20 via nvm..."
+      curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+      export NVM_DIR="$HOME/.nvm"
+      [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+      nvm install 20
+      nvm use 20
+    fi
+  fi
+}
+
 if command -v node &>/dev/null; then
   NODE_VER=$(node -v | sed 's/v//' | cut -d. -f1)
   if [[ "$NODE_VER" -ge 18 ]]; then
     echo -e "  ${CYAN}✓${NC} Node.js $(node -v)"
   else
     echo -e "  ${ORANGE}✗${NC} Node.js $(node -v) — need 18+"
-    echo "  Installing Node.js 20 via nvm..."
-    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-    export NVM_DIR="$HOME/.nvm"
-    [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-    nvm install 20
-    nvm use 20
+    install_node
   fi
 else
   echo -e "  ${ORANGE}✗${NC} Node.js not found"
-  echo "  Installing Node.js 20 via nvm..."
-  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-  export NVM_DIR="$HOME/.nvm"
-  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-  nvm install 20
-  nvm use 20
+  install_node
 fi
 
 # --- Check PostgreSQL (optional) ---
 if command -v psql &>/dev/null; then
-  echo -e "  ${CYAN}✓${NC} PostgreSQL $(psql --version | grep -oP '\d+\.\d+')"
+  echo -e "  ${CYAN}✓${NC} PostgreSQL $(psql --version | grep -oE '[0-9]+\.[0-9]+')"
 else
   echo -e "  ${ORANGE}—${NC} PostgreSQL not found (optional — app works without it)"
 fi
@@ -88,22 +98,26 @@ echo ""
 if [[ -d "$INSTALL_DIR" ]]; then
   echo -e "${BOLD}Updating existing installation...${NC}"
   cd "$INSTALL_DIR"
-  git pull --rebase origin main
+  git pull --rebase --autostash origin main
 else
   echo -e "${BOLD}Installing Bulwark to ${INSTALL_DIR}...${NC}"
   sudo mkdir -p "$INSTALL_DIR"
   sudo chown "$(whoami)" "$INSTALL_DIR"
-  git clone "$REPO_URL" "$INSTALL_DIR"
+  git clone "$REPO_URL" "$INSTALL_DIR" || {
+    echo -e "  ${ORANGE}Failed to clone repository. Check your network connection.${NC}"
+    exit 1
+  }
   cd "$INSTALL_DIR"
 fi
 
 # --- Install dependencies ---
 echo ""
 echo -e "${BOLD}Installing dependencies...${NC}"
-npm install --production 2>&1 | tail -1
+npm install --production
+echo -e "  ${CYAN}✓${NC} Dependencies installed"
 
 # --- Generate config ---
-ADMIN_PASS=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9' | head -c16)
+ADMIN_PASS=$(openssl rand -hex 16 | head -c16)
 
 if [[ ! -f ".env" ]]; then
   echo -e "${BOLD}Creating configuration...${NC}"
@@ -161,8 +175,12 @@ echo -e "  ${BOLD}URL:${NC}      http://$(hostname -I 2>/dev/null | awk '{print 
 echo -e "  ${BOLD}User:${NC}     admin"
 echo -e "  ${BOLD}Password:${NC} ${ADMIN_PASS}"
 echo ""
-echo -e "  ${BOLD}Manage:${NC}   sudo systemctl {start|stop|restart|status} ${SERVICE_NAME}"
-echo -e "  ${BOLD}Logs:${NC}     sudo journalctl -u ${SERVICE_NAME} -f"
+if [[ "$OS" == "Linux" ]] && command -v systemctl &>/dev/null; then
+  echo -e "  ${BOLD}Manage:${NC}   sudo systemctl {start|stop|restart|status} ${SERVICE_NAME}"
+  echo -e "  ${BOLD}Logs:${NC}     sudo journalctl -u ${SERVICE_NAME} -f"
+else
+  echo -e "  ${BOLD}Start:${NC}    cd ${INSTALL_DIR} && node server.js"
+fi
 echo -e "  ${BOLD}Config:${NC}   ${INSTALL_DIR}/.env"
 echo ""
 echo -e "  ${ORANGE}Change your password immediately after first login!${NC}"

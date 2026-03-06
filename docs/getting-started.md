@@ -613,7 +613,7 @@ The Projects view shows your active database connection with real-time stats:
 | Stat | Description |
 |------|-------------|
 | **Status** | Green dot = connected, orange = disconnected |
-| **Database** | Name (e.g. `db_autopilot`) |
+| **Database** | Name (e.g. `my_project_db`) |
 | **Size** | Database size on disk (e.g. 19 MB) |
 | **Connections** | Active connection count |
 | **Version** | PostgreSQL version (e.g. 17.8) |
@@ -1047,27 +1047,53 @@ A: The `assigned_to` field exists in the database but is not yet exposed in the 
 
 ## 22. Git
 
-Git operations — view branches, diffs, commit history, and generate AI commit messages.
+Full Git operations with AI intelligence. Manage branches, view commits, stage changes, stash, and generate AI-powered commit messages.
+
+### What You See
+
+- **Git Intelligence** — AI analyzes your repo (branch strategy, commit patterns, workflow recommendations)
+- **Repository selector** — switch between configured repos via dropdown
+- **Branch info** — current branch, status (changed files count), remote URL
+- **Tabs:** Commits, Branches, Changes, AI Commit, AI PR, Stash, Stats, Heatmap
+- **Changes tab** — unstaged/staged changes with full diff view (additions green, deletions red)
+- **Pull / Push / Refresh** buttons for quick git operations
 
 ### Git FAQ
 
 **Q: What repository does it use?**
-A: Bulwark uses the `REPO_DIR` environment variable (defaults to `/admin`). Set it to your project's git repository path.
+A: Bulwark uses the `REPO_DIR` environment variable. Click **+ Add Repo** to manage multiple repositories. Switch between them via the dropdown.
 
 **Q: How does AI commit message generation work?**
-A: Click **Generate** when committing. Claude analyzes your staged changes and writes a descriptive commit message. Requires Claude CLI.
+A: The **AI Commit** tab analyzes your staged changes and writes a descriptive commit message. Requires Claude CLI.
+
+**Q: Can I manage branches?**
+A: Yes. The **Branches** tab shows all local and remote branches. Create, switch, merge, or delete branches.
+
+**Q: What does Git Intelligence show?**
+A: AI analyzes your entire repo — commit patterns, branch strategy, workflow health, and recommendations. Click **Analyze** to run.
 
 ## 23. Deploy
 
-Deployment pipeline with rollback support and deploy checks.
+Deployment pipeline with AI intelligence, build profiles, environment management, and rollback support.
+
+### What You See
+
+- **Deploy Intelligence** — AI assesses your uncommitted changes and deployment readiness
+- **Tabs:** Pipeline, Environments, History, Build Profiles
+- **Build Profiles** — pre-configured templates: Next.js SaaS, Docker Deploy, Static Site, Node.js API. Click **Use as Template** to apply.
+- **Pipeline** — run deployments with real-time output
+- **History** — full deploy log with rollback capability
 
 ### Deploy FAQ
 
 **Q: How do I set up a deploy target?**
-A: Click **+ Add Target** and enter the server name, host, deploy command, and branch. Bulwark will SSH to the server and run your deploy script.
+A: Go to the **Environments** tab and add a target with host, branch, and deploy commands. Or use a **Build Profile** template for common setups (Next.js, Docker, Static, Node.js API).
 
 **Q: Can I rollback a deployment?**
-A: Yes. Each deploy is logged with a timestamp. Click **Rollback** to revert to the previous deployment state.
+A: Yes. The **History** tab logs every deploy with timestamp. Click **Rollback** to revert.
+
+**Q: What does Deploy Intelligence do?**
+A: AI analyzes your uncommitted changes, modified files, and repo state, then gives a go/no-go assessment with recommendations before deploying.
 
 ## 24. Cron Jobs
 
@@ -1113,15 +1139,26 @@ A: Yes, but consider using the Credential Vault instead for sensitive data like 
 
 ## 27. Calendar
 
-Schedule events, maintenance windows, and track upcoming tasks.
+Full calendar with month/week/agenda views, AI schedule briefing, and event planning.
+
+### What You See
+
+- **AI Schedule Briefing** — AI summary of upcoming events and priorities
+- **View modes:** Month, Week, Agenda, AI Planner
+- **Stats cards:** Today's events, This Week, Total, High Priority (orange)
+- **Monthly calendar** — current day highlighted in cyan, click any day to add events
+- **Events** stored in `data/calendar.json`
 
 ### Calendar FAQ
 
 **Q: Does it sync with Google Calendar?**
-A: Not currently. Events are stored locally in `data/calendar.json`. External calendar sync is planned.
+A: Not currently. Events are stored locally. External calendar sync is on the roadmap.
+
+**Q: What views are available?**
+A: Month (grid), Week (7-day timeline), Agenda (list), and AI Planner (AI-powered scheduling recommendations).
 
 **Q: Can I set reminders?**
-A: Events appear on the Dashboard's calendar widget. Push notifications for reminders are planned.
+A: Events appear on the Dashboard. Push notification reminders are planned.
 
 ## 28. Notes
 
@@ -1143,12 +1180,23 @@ A: Yes. Click the pin icon on any note to keep it at the top of the list.
 
 ## 29. Security Center
 
-Security scanning, vulnerability reports, and system hardening recommendations.
+Comprehensive security scanning with a 100-point security score, AI-powered posture analysis, and multi-tab security views.
+
+### What You See
+
+- **Bulwark Security Advisor** — AI analyzes your security posture. Click **Analyze Security Posture** for a full report.
+- **Security Score** — letter grade (A-F) out of 100 points
+- **Tabs:** Posture, Secret Scan, Dependencies, Events, Firewall, SSH Keys
+- **Posture checks:** .env in .gitignore, .gitignore present, hardcoded secrets detection, dependency lock file, Node.js version, HTTPS/TLS, auth security (2FA), open ports, npm audit
+- **Re-scan** button to refresh all checks
 
 ### Security Center FAQ
 
 **Q: What does the security scan check?**
-A: Open ports, running services, file permissions, SSH configuration, firewall rules, and common vulnerabilities. Results include a severity rating and fix recommendations.
+A: Nine categories: .env exposure, .gitignore presence, hardcoded secrets, dependency lock, Node.js version, HTTPS/TLS, auth security (2FA status), open ports, and npm audit. Each check contributes to the 100-point score.
+
+**Q: What is the Security Score?**
+A: A composite score from 0-100 with a letter grade (A = 90+, B = 80+, etc.). All checks passing gives 100/100 (grade A).
 
 **Q: How often should I scan?**
 A: Run a scan after any infrastructure change (new service, port change, user added). Weekly scans are recommended for production servers.

@@ -665,7 +665,7 @@ function closeMobile(){navT.classList.remove('open');navM.classList.remove('open
       <div class="feature-card">
         <div class="feature-icon">&#9683;</div>
         <h3>AI-Powered DB Studio</h3>
-        <p>Supabase-style database management. SQL editor with autocomplete, table browser, schema explorer, migration manager, and Claude-powered query generation.</p>
+        <p>Supabase-style database management. SQL editor with autocomplete, table browser, schema explorer, migration manager, and AI-powered query generation via Claude CLI or Codex CLI.</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">&#9638;</div>
@@ -723,21 +723,37 @@ function closeMobile(){navT.classList.remove('open');navM.classList.remove('open
         <div class="carousel-label"><span class="card-tag">Database</span><h3>Table Browser</h3><p>Two-panel explorer with columns, data, constraints, indexes</p></div>
       </div>
       <div class="carousel-slide" data-i="5">
+        <img loading="lazy" src="screenshots/github_2.png" alt="Git">
+        <div class="carousel-label"><span class="card-tag">DevOps</span><h3>Git Operations</h3><p>AI intelligence, branches, commits, changes, stash, heatmap</p></div>
+      </div>
+      <div class="carousel-slide" data-i="6">
+        <img loading="lazy" src="screenshots/deploy_1.png" alt="Deploy">
+        <div class="carousel-label"><span class="card-tag">DevOps</span><h3>Deploy Pipeline</h3><p>AI deploy intelligence, build profiles, environments, rollback</p></div>
+      </div>
+      <div class="carousel-slide" data-i="7">
+        <img loading="lazy" src="screenshots/security_center_3.png" alt="Security Center">
+        <div class="carousel-label"><span class="card-tag">Security</span><h3>Security Center</h3><p>100-point security score, posture scan, secrets detection, firewall</p></div>
+      </div>
+      <div class="carousel-slide" data-i="8">
         <img loading="lazy" src="screenshots/tickets_sidebar.png" alt="Kanban Board">
         <div class="carousel-label"><span class="card-tag">Operations</span><h3>Kanban Tickets</h3><p>Drag-and-drop board with AI triage across 7 stages</p></div>
       </div>
-      <div class="carousel-slide" data-i="6">
+      <div class="carousel-slide" data-i="9">
+        <img loading="lazy" src="screenshots/calender_4.png" alt="Calendar">
+        <div class="carousel-label"><span class="card-tag">Workspace</span><h3>Calendar &amp; Scheduling</h3><p>Month/week/agenda views, AI schedule briefing, event planner</p></div>
+      </div>
+      <div class="carousel-slide" data-i="10">
         <img loading="lazy" src="screenshots/roles_6.png" alt="Roles">
         <div class="carousel-label"><span class="card-tag">Security</span><h3>Roles &amp; Permissions</h3><p>AI security audit, permission heatmap, CRUD matrix</p></div>
       </div>
-      <div class="carousel-slide" data-i="7">
+      <div class="carousel-slide" data-i="11">
         <img loading="lazy" src="screenshots/Metrics_top_5.png" alt="Metrics">
         <div class="carousel-label"><span class="card-tag">Monitoring</span><h3>Real-Time Metrics</h3><p>AI analysis, CPU/memory/disk gauges, process telemetry</p></div>
       </div>
     </div>
   </div>
   <div class="carousel-footer">
-    <span class="carousel-counter"><span id="carCur">1</span> / 8</span>
+    <span class="carousel-counter"><span id="carCur">1</span> / 12</span>
     <span class="carousel-hint">Click image to expand</span>
   </div>
   <div class="carousel-pips" id="carPips"></div>
@@ -764,10 +780,14 @@ function closeMobile(){navT.classList.remove('open');navM.classList.remove('open
   var data = [
     { tag:'Overview', title:'AI-Powered Dashboard', desc:'98/100 health score, AI briefing, command hub with one-click diagnostics, deploy checks, and live CPU/memory/disk metrics at a glance.' },
     { tag:'DevOps', title:'Terminal AI', desc:'Full PTY terminal with AI assistant. Natural language commands \u2014 \u201cSSH into production,\u201d \u201ccheck disk space,\u201d \u201crestart Docker containers.\u201d Shell, AI, and Vault tabs.' },
-    { tag:'Database', title:'SQL Editor', desc:'Supabase-style query editor with syntax highlighting, autocomplete, query history, saved queries, Ask Claude AI generation, and CSV export.' },
+    { tag:'Database', title:'SQL Editor', desc:'Supabase-style query editor with syntax highlighting, autocomplete, query history, saved queries, AI-powered SQL generation (Claude/Codex), and CSV export.' },
     { tag:'Infrastructure', title:'Docker Fleet', desc:'Native Docker Engine API. Container stats, log streaming, multi-host connections, AI fleet intelligence. Start, stop, restart, inspect from the dashboard.' },
     { tag:'Database', title:'Table Browser', desc:'Two-panel explorer with columns, data, constraints, foreign keys, and indexes tabs. Filter tables, inspect schemas, open in SQL Editor.' },
+    { tag:'DevOps', title:'Git Operations', desc:'AI intelligence analyzes your repo \u2014 branch strategy, commit patterns, workflow health. Commits, Branches, Changes, AI Commit, AI PR, Stash, Stats, and Heatmap tabs.' },
+    { tag:'DevOps', title:'Deploy Pipeline', desc:'AI deploy intelligence assesses readiness before shipping. Build profiles for Next.js, Docker, Static, Node.js API. Pipeline, Environments, History, and rollback.' },
+    { tag:'Security', title:'Security Center', desc:'100-point security score with letter grade. Posture scan: .env exposure, secrets detection, dependency lock, Node.js version, HTTPS, 2FA, open ports, npm audit.' },
     { tag:'Operations', title:'Kanban Tickets', desc:'Drag-and-drop ticket board with AI triage. Pending, Analyzing, Fixing, Testing, Awaiting Approval, Approved, Deployed \u2014 full lifecycle tracking.' },
+    { tag:'Workspace', title:'Calendar & Scheduling', desc:'Month, Week, Agenda, and AI Planner views. AI schedule briefing, event stats (today, this week, total, high priority), click-to-add events.' },
     { tag:'Security', title:'Roles & Permissions', desc:'PostgreSQL role manager with AI security audit, permission heatmap, table-level CRUD matrix. Create least-privilege roles with AI generation.' },
     { tag:'Monitoring', title:'Real-Time Metrics', desc:'AI performance analysis, CPU/memory/connections/uptime gauges, process telemetry table with PID, user, CPU%, memory, and command details.' }
   ];
