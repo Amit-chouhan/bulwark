@@ -12,6 +12,7 @@
   var refreshTimer = null;
   var dockerAvailable = false;
   var activeTab = 'containers';
+  var serverConfig = {};
 
   Views.docker = {
     init: function () {
@@ -22,7 +23,16 @@
     show: function () {
       this.init();
       checkDocker();
-      Views.docker.runAI(false);
+      // Only restore cached AI — never auto-fetch
+      if (window.AICache) {
+        var restored = window.AICache.restore('docker');
+        if (restored) {
+          var body = document.getElementById('docker-ai-body');
+          if (body) body.textContent = restored.response;
+          var fb = document.getElementById('docker-ai-freshness');
+          if (fb) fb.innerHTML = window.AICache.freshnessBadge('docker');
+        }
+      }
       refreshTimer = setInterval(refreshActive, 10000);
     },
     hide: function () {
@@ -86,21 +96,38 @@
   function checkDocker() {
     fetch('/api/docker/status').then(function (r) { return r.json(); }).then(function (d) {
       dockerAvailable = d.available;
+      serverConfig = d.config || {};
+      serverConfig.serverPlatform = d.serverPlatform || '';
       if (d.available) {
         loadContainers();
         loadImages();
         renderDeployPanel();
+        renderDisconnectBtn();
       } else {
         renderUnavailable();
       }
     }).catch(function () { renderUnavailable(); });
   }
 
+  // Show disconnect button in fleet banner when connected
+  function renderDisconnectBtn() {
+    var banner = document.getElementById('docker-fleet-banner');
+    if (!banner) return;
+    // Add disconnect link to fleet banner after it renders
+    var existing = document.getElementById('docker-disconnect-wrap');
+    if (existing) return;
+    var wrap = document.createElement('div');
+    wrap.id = 'docker-disconnect-wrap';
+    wrap.style.cssText = 'text-align:right;padding:4px 12px 8px;';
+    wrap.innerHTML = '<button class="btn btn-sm btn-ghost" onclick="Views.docker.disconnect()" style="font-size:10px;color:var(--text-tertiary)">Disconnect Docker</button>';
+    banner.parentNode.insertBefore(wrap, banner.nextSibling);
+  }
+
   function renderUnavailable(statusError) {
     var el = document.getElementById('docker-panel-containers');
     if (!el) return;
-    var isWin = navigator.platform.indexOf('Win') >= 0;
-    var defaultSocket = isWin ? '\\\\.\\pipe\\docker_engine' : '/var/run/docker.sock';
+    // Use server-reported socket path (from /api/docker/status config), not browser OS
+    var defaultSocket = (serverConfig && serverConfig.socketPath) || '/var/run/docker.sock';
 
     el.innerHTML =
       '<div class="docker-setup-wizard">' +
@@ -110,6 +137,7 @@
         '<svg viewBox="0 0 48 48" fill="none" stroke="var(--cyan)" stroke-width="1.5" width="56" height="56" style="margin-bottom:16px;opacity:0.8"><rect x="4" y="20" width="10" height="10"/><rect x="18" y="20" width="10" height="10"/><rect x="32" y="20" width="10" height="10"/><rect x="11" y="8" width="10" height="10"/><rect x="25" y="8" width="10" height="10"/><path d="M0 36c6 8 36 8 48 0"/></svg>' +
         '<h2 style="color:var(--text-primary);margin:0 0 6px;font-size:20px">Connect to Docker</h2>' +
         '<p class="text-secondary" style="font-size:13px;margin:0">Add a local or remote Docker engine to manage containers, images, and networks.</p>' +
+        '<p class="text-tertiary" style="font-size:11px;margin:6px 0 0">Server platform: <strong>' + (serverConfig.serverPlatform || 'unknown') + '</strong></p>' +
       '</div>' +
 
       // Connection Type Picker
@@ -325,6 +353,21 @@
         Toast.error('Failed to save: ' + (d.error || 'Unknown error'));
       }
     }).catch(function () { Toast.error('Failed to save connection'); });
+  };
+
+  // Disconnect Docker (delete saved config)
+  Views.docker.disconnect = function () {
+    Modal.confirm({ title: 'Disconnect Docker', message: 'Remove saved Docker connection? You can reconnect anytime.', confirmText: 'Disconnect', dangerous: true }).then(function (ok) {
+      if (!ok) return;
+      fetch('/api/docker/config', { method: 'DELETE' }).then(function (r) { return r.json(); }).then(function (d) {
+        if (d.success) {
+          Toast.success('Docker disconnected');
+          dockerAvailable = false;
+          containers = []; images = []; networks = []; volumes = []; stats = {};
+          Views.docker.show(); // Re-render wizard
+        }
+      }).catch(function () { Toast.error('Failed to disconnect'); });
+    });
   };
 
   function refreshActive() {
@@ -682,7 +725,9 @@
         if (fb) fb.innerHTML = window.AICache.freshnessBadge('docker');
         return;
       }
+      return; // No cache and not forced — wait for user click
     }
+    if (!force) return;
     btn.disabled = true; btn.textContent = 'Analyzing...';
     body.innerHTML = '<span class="text-secondary">Analyzing container fleet...</span>';
     fetch('/api/docker/ai-analysis').then(function (r) { return r.json(); }).then(function (d) {

@@ -85,7 +85,7 @@ Diagnose the problem and give step-by-step instructions to fix it. Be specific w
   app.get('/api/docker/status', requireAdmin, async (req, res) => {
     try {
       const available = await docker.isAvailable();
-      res.json({ available, config: docker.loadConfig() });
+      res.json({ available, config: docker.loadConfig(), serverPlatform: process.platform });
     } catch (e) {
       res.json({ available: false, error: e.message });
     }
@@ -95,6 +95,18 @@ Diagnose the problem and give step-by-step instructions to fix it. Be specific w
   app.post('/api/docker/config', requireRole('editor'), (req, res) => {
     try {
       docker.saveConfig(req.body);
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Delete config (disconnect Docker)
+  app.delete('/api/docker/config', requireRole('editor'), (req, res) => {
+    try {
+      const fs = require('fs');
+      const cfgPath = require('path').join(__dirname, '..', 'data', 'docker-config.json');
+      if (fs.existsSync(cfgPath)) fs.unlinkSync(cfgPath);
       res.json({ success: true });
     } catch (e) {
       res.status(500).json({ error: e.message });
