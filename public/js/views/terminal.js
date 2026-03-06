@@ -299,28 +299,55 @@
     term.open(container);
     fitTerminal();
 
-    // Clipboard: Ctrl+Shift+C = copy, Ctrl+Shift+V = paste, right-click = paste
-    term.attachCustomKeyEventHandler(function (e) {
-      if (e.ctrlKey && e.shiftKey && e.key === 'C' && e.type === 'keydown') {
-        var sel = term.getSelection();
-        if (sel) navigator.clipboard.writeText(sel);
-        return false;
-      }
-      if (e.ctrlKey && e.shiftKey && e.key === 'V' && e.type === 'keydown') {
+    // Paste helper — tries Clipboard API, falls back to execCommand
+    function pasteIntoTerminal() {
+      if (navigator.clipboard && navigator.clipboard.readText) {
         navigator.clipboard.readText().then(function (text) {
           if (text && termStarted) socket.emit('terminal_input', text);
+        }).catch(function () {
+          // Clipboard API denied — show manual paste modal
+          showPasteModal();
         });
+      } else {
+        showPasteModal();
+      }
+    }
+
+    function showPasteModal() {
+      var id = 'term-paste-input';
+      Modal.open({
+        title: 'Paste into Terminal',
+        body: '<textarea id="' + id + '" class="form-input" rows="4" placeholder="Ctrl+V here, then click Paste" style="width:100%;font-family:monospace;font-size:13px"></textarea>',
+        footer: '<button class="btn btn-sm" onclick="Modal.close()">Cancel</button>' +
+          '<button class="btn btn-sm btn-primary" onclick="var t=document.getElementById(\'' + id + '\');if(t.value&&window.socket){window.socket.emit(\'terminal_input\',t.value);}Modal.close();">Paste</button>'
+      });
+      setTimeout(function () { var el = document.getElementById(id); if (el) el.focus(); }, 100);
+    }
+
+    // Clipboard: Ctrl+Shift+C/V, Ctrl+V (when no selection), right-click
+    term.attachCustomKeyEventHandler(function (e) {
+      if (e.type !== 'keydown') return true;
+      // Ctrl+Shift+C = copy selection
+      if (e.ctrlKey && e.shiftKey && e.key === 'C') {
+        var sel = term.getSelection();
+        if (sel) {
+          navigator.clipboard.writeText(sel).catch(function () {});
+          Toast.info('Copied to clipboard');
+        }
+        return false;
+      }
+      // Ctrl+Shift+V or Ctrl+V = paste
+      if (e.ctrlKey && (e.key === 'V' || e.key === 'v') && !e.altKey) {
+        pasteIntoTerminal();
         return false;
       }
       return true;
     });
 
-    // Right-click paste
+    // Right-click = paste
     container.addEventListener('contextmenu', function (e) {
       e.preventDefault();
-      navigator.clipboard.readText().then(function (text) {
-        if (text && termStarted) socket.emit('terminal_input', text);
-      }).catch(function () {});
+      pasteIntoTerminal();
     });
 
     term.onData(function (data) { if (termStarted) socket.emit('terminal_input', data); });
