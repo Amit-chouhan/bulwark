@@ -243,9 +243,11 @@ io.on("connection", (socket) => {
     const cols = (opts && opts.cols > 0) ? opts.cols : 120;
     const rows = (opts && opts.rows > 0) ? opts.rows : 30;
     const shell = os.platform() === "win32" ? "powershell.exe" : "bash";
+    const fs = require("fs");
+    const termCwd = fs.existsSync(REPO_DIR) ? REPO_DIR : process.cwd();
     const term = pty.spawn(shell, [], {
       name: "xterm-256color", cols, rows,
-      cwd: REPO_DIR, env: { ...process.env, TERM: "xterm-256color" },
+      cwd: termCwd, env: { ...process.env, TERM: "xterm-256color" },
     });
     term.onData((data) => socket.emit("terminal_output", data));
     term.onExit(() => { ptyMap.delete(socket.id); socket.emit("terminal_output", "\r\n[Session ended]\r\n"); });
