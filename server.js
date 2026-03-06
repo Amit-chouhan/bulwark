@@ -7,7 +7,7 @@
 //   cd dev-monitor && npm install && npm start
 //   pm2 start server.js --name "dev-monitor"
 //
-// Access: http://localhost:3001 or https://monitor.autopilotaitech.com
+// Access: http://localhost:3001
 // =============================================================================
 
 // Load .env file if present (no dotenv dependency needed)

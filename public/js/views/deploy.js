@@ -208,12 +208,12 @@
   function targetForm(t) {
     t = t || {};
     return '<div class="cred-form">' +
-      fRow('Name', '<input type="text" id="dt-name" class="form-input" value="' + esc(t.name || '') + '" placeholder="AWS Production" />') +
+      fRow('Name', '<input type="text" id="dt-name" class="form-input" value="' + esc(t.name || '') + '" placeholder="My Server" />') +
       fRow('Method', '<select id="dt-method" class="form-input">' +
         opt('ssh_git', 'SSH + Git Pull', t.method) + opt('docker', 'Docker Deploy', t.method) +
         opt('rsync', 'Rsync', t.method) + opt('custom', 'Custom Command', t.method) +
       '</select>') +
-      fRow('Host', '<input type="text" id="dt-host" class="form-input" value="' + esc(t.host || '') + '" placeholder="52.14.172.100" />') +
+      fRow('Host', '<input type="text" id="dt-host" class="form-input" value="' + esc(t.host || '') + '" placeholder="192.168.1.100" />') +
       fRow('Branch', '<input type="text" id="dt-branch" class="form-input" value="' + esc(t.branch || 'main') + '" placeholder="main" />') +
       fRow('Credential (from Vault)', '<select id="dt-cred" class="form-input"><option value="">None</option></select>') +
       fRow('Build Command', '<input type="text" id="dt-build" class="form-input" value="' + esc(t.buildCmd || '') + '" placeholder="npm install && npm run build" />') +

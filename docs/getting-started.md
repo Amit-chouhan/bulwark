@@ -6,17 +6,60 @@ Your entire server, one dashboard. This guide walks you through setting up Bulwa
 
 ## Table of Contents
 
+**Getting Started**
 1. [Installation](#1-installation)
 2. [First Login](#2-first-login)
 3. [Setting Up AI (Claude & Codex)](#3-setting-up-ai-claude--codex)
+
+**Overview**
 4. [Dashboard](#4-dashboard)
 5. [Metrics](#5-metrics)
 6. [Uptime](#6-uptime)
-7. [Connecting Your Database](#7-connecting-your-database)
-8. [Adding Servers](#8-adding-servers)
-9. [Terminal & Command Center](#9-terminal--command-center)
-10. [Keyboard Shortcuts](#10-keyboard-shortcuts)
-11. [FAQ](#11-faq)
+
+**Infrastructure**
+7. [Servers](#7-servers)
+8. [Docker](#8-docker)
+9. [PM2](#9-pm2)
+10. [SSL / Domains](#10-ssl--domains)
+11. [Cloudflare](#11-cloudflare)
+
+**Database**
+12. [Projects](#12-projects)
+13. [SQL Editor](#13-sql-editor)
+14. [Tables](#14-tables)
+15. [Schema](#15-schema)
+16. [Migrations](#16-migrations)
+17. [Roles](#17-roles)
+18. [Backups](#18-backups)
+19. [AI Assistant](#19-ai-assistant)
+
+**DevOps**
+20. [Terminal](#20-terminal)
+21. [Tickets](#21-tickets)
+22. [Git](#22-git)
+23. [Deploy](#23-deploy)
+24. [Cron Jobs](#24-cron-jobs)
+25. [File Manager](#25-file-manager)
+26. [Env Variables](#26-env-variables)
+
+**Workspace**
+27. [Calendar](#27-calendar)
+28. [Notes](#28-notes)
+
+**Security**
+29. [Security Center](#29-security-center)
+30. [FTP](#30-ftp)
+31. [Notifications](#31-notifications)
+
+**System**
+32. [Cache](#32-cache)
+33. [Logs](#33-logs)
+34. [Multi-Server](#34-multi-server)
+35. [Settings](#35-settings)
+
+**Reference**
+36. [Keyboard Shortcuts](#36-keyboard-shortcuts)
+37. [FAQ](#37-faq)
 
 ---
 
@@ -340,50 +383,18 @@ A: Yes. Click **+ Uptime Page** on any server card to generate a shareable statu
 
 ---
 
-## 7. Connecting Your Database
-
-### Local PostgreSQL (Docker Compose)
-
-The Docker setup includes PostgreSQL 17 — it's already connected. Navigate to **Database > Tables** to see your schema.
-
-### External Database (AWS RDS, Google Cloud SQL, Supabase, etc.)
-
-1. Go to **Database > Projects** in the sidebar
-2. Click **+ Add Project**
-3. Enter your connection string:
-   ```
-   postgresql://user:password@host:5432/dbname
-   ```
-4. Click **Test Connection**, then **Save**
-
-Bulwark supports multiple database connections. Switch between them using the database picker in the top bar of any Database view.
-
-### What You Get
-
-- **SQL Editor** — Write and run queries with AI-powered autocompletion
-- **Table Browser** — Browse schema, data, constraints, indexes
-- **Schema Explorer** — Functions, triggers, extensions
-- **Migration Manager** — Track applied/pending migrations
-- **Roles & Permissions** — AI security audit with scoring
-- **Backups** — pg_dump with AI strategy analysis
-
 ---
 
-## 8. Adding Servers
+# Infrastructure
 
-### Local Server
+## 7. Servers
 
-Your local machine is monitored automatically. View CPU, memory, disk, and processes under **Overview > Metrics**.
+Your local machine is monitored automatically as "Local Dev". Add remote servers to monitor your full infrastructure.
 
-### Remote Servers (AWS, GCP, etc.)
+### Adding a Remote Server
 
-1. Go to **Infrastructure > Servers**
-2. Click **+ Add Server**
-3. Enter:
-   - **Name**: e.g. "AWS Production"
-   - **Host**: IP or hostname
-   - **Port**: SSH port (default 22)
-4. Save
+1. Set the `VPS_HOST` environment variable to your server's URL, or
+2. Add servers via the database `cloud_endpoints` table
 
 ### SSH Credentials
 
@@ -397,11 +408,212 @@ Store SSH keys securely in the **Credential Vault** (Terminal > Vault tab):
 
 Once stored, click the play button next to any credential to SSH directly from the terminal.
 
+### Servers FAQ
+
+**Q: How do I monitor a remote server?**
+A: Set `VPS_HOST=https://your-server.com` in your `.env` file, or add it to the `cloud_endpoints` database table. The server needs a `/api/health` endpoint for health checks.
+
+**Q: Does it support AWS / GCP / Azure?**
+A: Yes. Add any server accessible via HTTP health checks or SSH. Cloud-specific features (Cloudflare DNS, Docker management) work when the respective services are configured.
+
+**Q: Why does "Local Dev" always show?**
+A: Local Dev represents the machine Bulwark is running on. It always appears and reports real-time system metrics via the Node.js `os` module.
+
 ---
 
-## 9. Terminal & Command Center
+## 8. Docker
 
-The terminal is a floating drawer that persists across all pages.
+Manage Docker containers, images, volumes, and networks directly from the dashboard.
+
+### Docker FAQ
+
+**Q: Docker shows "Connection failed".**
+A: Bulwark connects to the Docker Engine API via the Unix socket (`/var/run/docker.sock`). Make sure Docker is installed and the Bulwark user has permission to access the socket.
+
+**Q: Can I manage Docker on a remote server?**
+A: Currently Docker management is local only. For remote servers, use the Terminal to SSH in and run Docker commands.
+
+---
+
+## 9. PM2
+
+Monitor and manage PM2 process manager instances.
+
+### PM2 FAQ
+
+**Q: PM2 shows "No processes found".**
+A: PM2 must be installed and running on the server. Install with `npm install -g pm2`, then start your app with `pm2 start app.js`.
+
+**Q: Can I restart processes from Bulwark?**
+A: Yes. Click the restart button next to any process, or use the Terminal to run `pm2 restart <name>`.
+
+---
+
+## 10. SSL / Domains
+
+Manage SSL/TLS certificates and domain configurations.
+
+### SSL FAQ
+
+**Q: How do I add an SSL certificate?**
+A: Go to SSL / Domains and click **+ Add**. You can paste your certificate and key, or configure automatic renewal via Let's Encrypt.
+
+**Q: Does it support Let's Encrypt?**
+A: Yes, via the adapter service. Configure your domain and Bulwark will handle certificate issuance and renewal.
+
+---
+
+## 11. Cloudflare
+
+Manage Cloudflare DNS records, tunnels, and zone settings.
+
+### Cloudflare FAQ
+
+**Q: How do I connect Cloudflare?**
+A: Add your Cloudflare API token in the Credential Vault. Go to Cloudflare in the sidebar — it will auto-detect your zones and DNS records.
+
+**Q: Can I manage Cloudflare Tunnels?**
+A: Yes. View, create, and delete tunnels directly from the Cloudflare view. Requires a Cloudflare API token with tunnel permissions.
+
+---
+
+# Database
+
+## 12. Projects
+
+Manage multiple database connections. The Docker setup includes PostgreSQL 17 — it's already connected out of the box.
+
+### Adding an External Database
+
+1. Go to **Database > Projects** in the sidebar
+2. Click **+ Add Project**
+3. Enter your connection string:
+   ```
+   postgresql://user:password@host:5432/dbname
+   ```
+4. Click **Test Connection**, then **Save**
+
+Switch between connections using the database picker in the top bar of any Database view.
+
+### Projects FAQ
+
+**Q: Can I connect to multiple databases?**
+A: Yes. Add as many projects as you need. Switch between them with the database picker.
+
+**Q: Does it support MySQL or SQLite?**
+A: Currently PostgreSQL only. MySQL and SQLite support is planned.
+
+---
+
+## 13. SQL Editor
+
+Write and run SQL queries with AI-powered autocompletion, syntax highlighting, and query history.
+
+### SQL Editor FAQ
+
+**Q: How do I use AI to generate SQL?**
+A: Click **Ask Claude** in the SQL Editor toolbar. Describe what you want in plain English and Claude will generate the SQL. Requires Claude CLI to be authenticated.
+
+**Q: Can I run destructive queries (DROP, ALTER)?**
+A: DDL statements are blocked by default. To run them, the query must include the `?allow_ddl=true` parameter. This is a safety measure.
+
+**Q: Where is query history stored?**
+A: In `data/query-history.json`. The last 100 queries are kept. You can also save named queries for quick access.
+
+---
+
+## 14. Tables
+
+Browse your database schema — columns, data, constraints, foreign keys, and indexes in a two-panel layout.
+
+### Tables FAQ
+
+**Q: Can I edit data directly?**
+A: The Tables view is read-only for safety. Use the SQL Editor to run INSERT/UPDATE/DELETE statements.
+
+**Q: Why do some tables show 0 rows?**
+A: Row counts are estimates from PostgreSQL statistics. Run `ANALYZE` on your database to update the estimates, or click into the table to see actual row data.
+
+---
+
+## 15. Schema
+
+Explore database functions, triggers, extensions, and indexes.
+
+### Schema FAQ
+
+**Q: Can I create functions or triggers from here?**
+A: The Schema view is read-only for browsing. Use the SQL Editor to create or modify database objects.
+
+**Q: What extensions are available?**
+A: Shows all installed PostgreSQL extensions (e.g. pg_stat_statements, uuid-ossp, pgcrypto). Install new ones via SQL: `CREATE EXTENSION extension_name;`
+
+---
+
+## 16. Migrations
+
+Track applied vs pending database migrations. Supports Docker test-runs and schema diffs.
+
+### Migrations FAQ
+
+**Q: Where do migration files go?**
+A: Place `.sql` files in your project's migration directory. Bulwark scans the filesystem and compares against applied migrations in the database.
+
+**Q: Can I test a migration before applying?**
+A: Yes. Click **Test Run** to spin up a temporary PostgreSQL container, apply the migration, validate, and destroy — without touching your live database.
+
+---
+
+## 17. Roles
+
+View PostgreSQL roles, table-level permissions, and run AI security audits.
+
+### Roles FAQ
+
+**Q: What does the AI security audit do?**
+A: Claude analyzes all database roles, their permissions, and privilege levels, then returns a security score with specific findings and recommendations. Requires Claude CLI.
+
+**Q: Can I create roles from here?**
+A: Use the AI role generator — describe what the role needs access to in plain English and Claude generates the least-privilege SQL. Run it in the SQL Editor.
+
+---
+
+## 18. Backups
+
+Create and restore PostgreSQL backups with AI-powered backup strategy analysis.
+
+### Backups FAQ
+
+**Q: pg_dump says "version mismatch".**
+A: Your pg_dump client version must match or exceed your PostgreSQL server version. The Docker image includes pg_dump 17. For manual installs, install `postgresql-client-17`.
+
+**Q: What if pg_dump isn't installed?**
+A: Bulwark falls back to SQL-based export, dumping schema and data via PostgreSQL queries. Less feature-complete than pg_dump but works everywhere.
+
+**Q: What does AI backup strategy do?**
+A: Claude analyzes your backup history, database size, and configuration, then provides a health score, disaster recovery plan, and specific recommendations.
+
+---
+
+## 19. AI Assistant
+
+A conversational AI assistant for database operations — ask questions about your schema, generate queries, and get optimization advice.
+
+### AI Assistant FAQ
+
+**Q: What can I ask the AI Assistant?**
+A: Anything about your database — "show me the largest tables", "generate an index for slow queries", "explain this schema". It has context about your connected database.
+
+**Q: Which AI provider does it use?**
+A: Whatever is configured in Settings > AI Provider. Default is Claude CLI. Also supports Codex CLI or none.
+
+---
+
+# DevOps
+
+## 20. Terminal
+
+A floating terminal drawer that persists across all pages.
 
 ### Three Tabs
 
@@ -423,9 +635,244 @@ The toolbar above the terminal has one-click buttons: `clear`, `ls`, `git st`, `
 | Copy (selected text) | `Ctrl+C` (copies if text selected, sends SIGINT if not) |
 | Copy (always) | `Ctrl+Shift+C` |
 
+### Terminal FAQ
+
+**Q: Copy/paste isn't working in the terminal.**
+A: Use `Ctrl+V` to paste and `Ctrl+C` to copy selected text. If `Ctrl+C` sends SIGINT instead of copying, select text first — it copies when text is highlighted, sends SIGINT when nothing is selected.
+
+**Q: Claude CLI says "cannot be used with root/sudo privileges".**
+A: The Docker image runs as the `bulwark` user (not root) to support this. If you're running manually, don't use `sudo` with Claude CLI.
+
+**Q: The terminal says "Session ended".**
+A: The PTY session timed out or crashed. Click the Shell tab or press `Ctrl + Backtick` to reconnect.
+
 ---
 
-## 10. Keyboard Shortcuts
+## 21. Tickets
+
+Support ticket system with Kanban board, status tracking, and approval workflows.
+
+### Tickets FAQ
+
+**Q: Where are tickets stored?**
+A: In the PostgreSQL `support_tickets` table. Tickets work when a database is connected.
+
+**Q: Can I use tickets without a database?**
+A: No. The ticket system requires PostgreSQL. Without it, the view shows "No database connected".
+
+---
+
+## 22. Git
+
+Git operations — view branches, diffs, commit history, and generate AI commit messages.
+
+### Git FAQ
+
+**Q: What repository does it use?**
+A: Bulwark uses the `REPO_DIR` environment variable (defaults to `/admin`). Set it to your project's git repository path.
+
+**Q: How does AI commit message generation work?**
+A: Click **Generate** when committing. Claude analyzes your staged changes and writes a descriptive commit message. Requires Claude CLI.
+
+---
+
+## 23. Deploy
+
+Deployment pipeline with rollback support and deploy checks.
+
+### Deploy FAQ
+
+**Q: How do I set up a deploy target?**
+A: Click **+ Add Target** and enter the server name, host, deploy command, and branch. Bulwark will SSH to the server and run your deploy script.
+
+**Q: Can I rollback a deployment?**
+A: Yes. Each deploy is logged with a timestamp. Click **Rollback** to revert to the previous deployment state.
+
+---
+
+## 24. Cron Jobs
+
+View, create, edit, and delete cron jobs with a scheduling UI.
+
+### Cron Jobs FAQ
+
+**Q: Does it manage system crontab?**
+A: Yes. Bulwark reads and writes the system crontab. Requires appropriate permissions on the server.
+
+**Q: Can I test a cron schedule?**
+A: The scheduling UI shows a human-readable description of when the job will run next (e.g. "Every day at 3:00 AM").
+
+---
+
+## 25. File Manager
+
+Browse, edit, upload, and download files on the server.
+
+### File Manager FAQ
+
+**Q: What directory does it start in?**
+A: The file manager starts in the `REPO_DIR` directory. Navigate using the breadcrumb path or sidebar tree.
+
+**Q: Can I edit files directly?**
+A: Yes. Click any text file to open it in an inline editor. Save changes directly to the server.
+
+---
+
+## 26. Env Variables
+
+View and manage environment variables.
+
+### Env Variables FAQ
+
+**Q: Are env variables persisted?**
+A: Variables managed through Bulwark are stored in `data/envvars.json`. System environment variables are read-only.
+
+**Q: Can I add sensitive values?**
+A: Yes, but consider using the Credential Vault instead for sensitive data like API keys and passwords — it encrypts with AES-256-GCM.
+
+---
+
+# Workspace
+
+## 27. Calendar
+
+Schedule events, maintenance windows, and track upcoming tasks.
+
+### Calendar FAQ
+
+**Q: Does it sync with Google Calendar?**
+A: Not currently. Events are stored locally in `data/calendar.json`. External calendar sync is planned.
+
+**Q: Can I set reminders?**
+A: Events appear on the Dashboard's calendar widget. Push notifications for reminders are planned.
+
+---
+
+## 28. Notes
+
+Quick notes with pin support — jot down commands, links, or reminders.
+
+### Notes FAQ
+
+**Q: Where are notes stored?**
+A: In `data/notes.json`. Notes persist across sessions and server restarts.
+
+**Q: Can I pin important notes?**
+A: Yes. Click the pin icon on any note to keep it at the top of the list.
+
+---
+
+# Security
+
+## 29. Security Center
+
+Security scanning, vulnerability reports, and system hardening recommendations.
+
+### Security Center FAQ
+
+**Q: What does the security scan check?**
+A: Open ports, running services, file permissions, SSH configuration, firewall rules, and common vulnerabilities. Results include a severity rating and fix recommendations.
+
+**Q: How often should I scan?**
+A: Run a scan after any infrastructure change (new service, port change, user added). Weekly scans are recommended for production servers.
+
+---
+
+## 30. FTP
+
+Manage FTP server, user accounts, and active sessions.
+
+### FTP FAQ
+
+**Q: Does Bulwark include an FTP server?**
+A: No. This view manages an existing FTP server (vsftpd, ProFTPD, etc.) running on your system. It requires the adapter service.
+
+**Q: Can I create FTP users?**
+A: Yes. Click **+ Add User** to create a new FTP account with a home directory and permissions.
+
+---
+
+## 31. Notifications
+
+Notification center for system alerts, events, and activity.
+
+### Notifications FAQ
+
+**Q: What triggers notifications?**
+A: Server health changes, deploy events, security alerts, ticket updates, and cron job failures.
+
+**Q: Can I get notifications outside Bulwark?**
+A: Currently notifications are in-app only (bell icon in the top bar). Email and webhook notifications are planned.
+
+---
+
+# System
+
+## 32. Cache
+
+View and manage the AI intelligence cache — content-addressed storage with anomaly detection.
+
+### Cache FAQ
+
+**Q: What does the cache store?**
+A: AI responses (briefings, analysis, SQL generation) are cached to avoid redundant API calls. Each entry has a freshness badge showing age.
+
+**Q: Can I clear the cache?**
+A: Yes. Click **Clear All** to reset the cache. Individual entries can also be deleted.
+
+---
+
+## 33. Logs
+
+System logs, audit trail, and activity history.
+
+### Logs FAQ
+
+**Q: What gets logged?**
+A: Every API call is logged with timestamp, user, action, resource, method, IP, and result. View in Settings > Audit Log for the full trail.
+
+**Q: Can I export logs?**
+A: Yes. Go to Settings > Audit Log and click **Export JSON** or **Export CSV**.
+
+---
+
+## 34. Multi-Server
+
+Aggregated view across all connected servers — compare health, metrics, and status side by side.
+
+### Multi-Server FAQ
+
+**Q: How do I add servers to this view?**
+A: Servers added in Infrastructure > Servers automatically appear here. The view aggregates health data from all connected servers.
+
+**Q: What if a server is unreachable?**
+A: It shows as "unreachable" with an orange indicator. Other servers continue to report normally.
+
+---
+
+## 35. Settings
+
+Account management, 2FA, AI provider configuration, audit log, and user management.
+
+### Settings FAQ
+
+**Q: How do I change my password?**
+A: Go to Settings > My Account and click **Change Password**.
+
+**Q: How do I enable 2FA?**
+A: Go to Settings > Two-Factor Authentication and click **Enable 2FA**. Scan the QR code with your authenticator app (Google Authenticator, Authy, etc.).
+
+**Q: How do I switch AI providers?**
+A: Go to Settings > AI Provider. Choose between Claude CLI, Codex CLI, or None.
+
+**Q: Can I add more users?**
+A: Yes. Admins can add users in Settings > User Management. Each user gets a role (admin, editor, viewer) that controls what they can access.
+
+---
+
+# Reference
+
+## 36. Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
@@ -434,7 +881,7 @@ The toolbar above the terminal has one-click buttons: `clear`, `ls`, `git st`, `
 
 ---
 
-## 11. FAQ
+## 37. FAQ
 
 ### General
 
@@ -457,33 +904,6 @@ A: Yes. Claude CLI and Codex CLI are independent tools. Set both API keys and us
 
 **Q: Is my API key stored securely?**
 A: API keys passed via environment variables stay in memory only. Keys stored in the Credential Vault are encrypted with AES-256-GCM.
-
-### Terminal
-
-**Q: Copy/paste isn't working in the terminal.**
-A: Use `Ctrl+V` to paste and `Ctrl+C` to copy selected text. If `Ctrl+C` sends SIGINT instead of copying, select text first — it copies when text is highlighted, sends SIGINT when nothing is selected.
-
-**Q: Claude CLI says "cannot be used with root/sudo privileges".**
-A: The Docker image runs as the `bulwark` user (not root) to support this. If you're running manually, don't use `sudo` with Claude CLI.
-
-**Q: The terminal says "Session ended".**
-A: The PTY session timed out or crashed. Click the Shell tab or press `Ctrl + Backtick` to reconnect.
-
-### Database
-
-**Q: pg_dump backup says "version mismatch".**
-A: Your pg_dump client version must match or exceed your PostgreSQL server version. The Docker image includes pg_dump 17. For manual installs, install `postgresql-client-17`.
-
-**Q: Can I connect to multiple databases?**
-A: Yes. Use Database > Projects to add multiple connection strings. Switch between them with the database picker.
-
-### Infrastructure
-
-**Q: How do I monitor a remote server?**
-A: Add it under Infrastructure > Servers. For full monitoring, the remote server needs the Bulwark agent installed, or you can use SSH-based monitoring via stored credentials.
-
-**Q: Does it support AWS / GCP / Azure?**
-A: Yes. Add any server accessible via SSH. Cloud-specific features (Cloudflare DNS, Docker management) work when the respective services are configured.
 
 ---
 

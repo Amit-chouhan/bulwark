@@ -594,13 +594,13 @@
   function credForm(c) {
     c = c || {};
     return '<div class="cred-form">' +
-      fRow('Name', '<input type="text" id="cf-name" class="form-input" value="' + h(c.name || '') + '" placeholder="AWS Production" />') +
+      fRow('Name', '<input type="text" id="cf-name" class="form-input" value="' + h(c.name || '') + '" placeholder="My Server" />') +
       fRow('Type', '<select id="cf-type" class="form-input" onchange="Views.terminal.cfTypeChange()">' +
         opt('ssh_key', 'SSH Key', c.type) + opt('api_token', 'API Token', c.type) +
         opt('connection_string', 'Connection String', c.type) + opt('password', 'Password', c.type) + opt('custom', 'Custom', c.type) +
       '</select>') +
       '<div id="cf-host-fields">' +
-        fRow('Host', '<input type="text" id="cf-host" class="form-input" value="' + h(c.host || '') + '" placeholder="52.14.172.100" />') +
+        fRow('Host', '<input type="text" id="cf-host" class="form-input" value="' + h(c.host || '') + '" placeholder="192.168.1.100" />') +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">' +
           fRow('Port', '<input type="number" id="cf-port" class="form-input" value="' + h(c.port || '') + '" placeholder="22" />') +
           fRow('Username', '<input type="text" id="cf-user" class="form-input" value="' + h(c.username || '') + '" placeholder="ubuntu" />') +
