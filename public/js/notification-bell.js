@@ -12,16 +12,27 @@
     var panel = document.getElementById('notif-panel');
     if (!panel) return;
     notifOpen = !notifOpen;
-    panel.style.display = notifOpen ? 'block' : 'none';
-    if (notifOpen) loadNotifications();
+    if (notifOpen) {
+      // Position panel below the bell button
+      var btn = document.getElementById('notif-bell-wrap');
+      if (btn) {
+        var rect = btn.getBoundingClientRect();
+        panel.style.top = (rect.bottom + 8) + 'px';
+        panel.style.right = (window.innerWidth - rect.right) + 'px';
+      }
+      panel.style.display = 'block';
+      loadNotifications();
+    } else {
+      panel.style.display = 'none';
+    }
   };
 
   // Close on click outside
   document.addEventListener('click', function (e) {
     if (!notifOpen) return;
-    var wrap = document.getElementById('notif-bell-wrap');
+    var btn = document.getElementById('notif-bell-wrap');
     var panel = document.getElementById('notif-panel');
-    if (wrap && wrap.contains(e.target)) return;
+    if (btn && btn.contains(e.target)) return;
     if (panel && panel.contains(e.target)) return;
     notifOpen = false;
     if (panel) panel.style.display = 'none';
