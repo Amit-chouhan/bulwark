@@ -13,6 +13,7 @@
   var dockerAvailable = false;
   var activeTab = 'containers';
   var serverConfig = {};
+  var connections = [];  // All saved infrastructure connections
 
   Views.docker = {
     init: function () {
@@ -43,6 +44,17 @@
 
   function buildTemplate() {
     return '<div class="docker-dashboard">' +
+      // Connections Manager (always visible)
+      '<div class="glass-card" id="docker-connections-panel" style="padding:16px;margin-bottom:12px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
+          '<div style="display:flex;align-items:center;gap:8px">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="1.5" width="18" height="18"><rect x="2" y="10" width="5" height="5"/><rect x="9" y="10" width="5" height="5"/><rect x="16" y="10" width="5" height="5"/><rect x="5.5" y="4" width="5" height="5"/><rect x="12.5" y="4" width="5" height="5"/><path d="M0 18c3 4 18 4 24 0"/></svg>' +
+            '<span style="font-weight:600;color:var(--text-primary);font-size:14px">Infrastructure Connections</span>' +
+          '</div>' +
+          '<button class="btn btn-sm btn-cyan" onclick="Views.docker.showAddConnection()">+ Add Connection</button>' +
+        '</div>' +
+        '<div id="docker-connections-list"></div>' +
+      '</div>' +
       // AI Analysis
       '<div class="docker-ai-section">' +
         '<div class="briefing-card glass-card">' +
@@ -94,280 +106,270 @@
 
   // ── Docker Status Check ──
   function checkDocker() {
-    fetch('/api/docker/status').then(function (r) { return r.json(); }).then(function (d) {
-      dockerAvailable = d.available;
-      serverConfig = d.config || {};
-      serverConfig.serverPlatform = d.serverPlatform || '';
-      if (d.available) {
+    // Load connections list + status in parallel
+    Promise.all([
+      fetch('/api/docker/connections').then(function (r) { return r.json(); }),
+      fetch('/api/docker/status').then(function (r) { return r.json(); })
+    ]).then(function (results) {
+      var connData = results[0];
+      var statusData = results[1];
+      connections = connData.connections || [];
+      serverConfig = statusData.config || {};
+      serverConfig.serverPlatform = statusData.serverPlatform || connData.serverPlatform || '';
+      dockerAvailable = statusData.available;
+      renderConnectionsList();
+      if (dockerAvailable) {
         loadContainers();
         loadImages();
         renderDeployPanel();
-        renderDisconnectBtn();
       } else {
         renderUnavailable();
       }
-    }).catch(function () { renderUnavailable(); });
+    }).catch(function () {
+      connections = [];
+      renderConnectionsList();
+      renderUnavailable();
+    });
   }
 
-  // Show disconnect button in fleet banner when connected
-  function renderDisconnectBtn() {
-    var banner = document.getElementById('docker-fleet-banner');
-    if (!banner) return;
-    // Add disconnect link to fleet banner after it renders
-    var existing = document.getElementById('docker-disconnect-wrap');
-    if (existing) return;
-    var wrap = document.createElement('div');
-    wrap.id = 'docker-disconnect-wrap';
-    wrap.style.cssText = 'text-align:right;padding:4px 12px 8px;';
-    wrap.innerHTML = '<button class="btn btn-sm btn-ghost" onclick="Views.docker.disconnect()" style="font-size:10px;color:var(--text-tertiary)">Disconnect Docker</button>';
-    banner.parentNode.insertBefore(wrap, banner.nextSibling);
-  }
-
-  function renderUnavailable(statusError) {
-    var el = document.getElementById('docker-panel-containers');
+  // ── Render Connections List ──
+  function renderConnectionsList() {
+    var el = document.getElementById('docker-connections-list');
     if (!el) return;
-    // Use server-reported socket path (from /api/docker/status config), not browser OS
+    if (connections.length === 0) {
+      el.innerHTML = '<div class="text-tertiary" style="font-size:12px;padding:8px 0">No connections configured. Click "+ Add Connection" to connect to a Docker engine.</div>';
+      return;
+    }
+    el.innerHTML = connections.map(function (c) {
+      var addr = c.type === 'remote' ? 'tcp://' + esc(c.host || '') + ':' + (c.port || 2375) : (c.socketPath || '/var/run/docker.sock');
+      var statusDot = c.active && dockerAvailable ? '<span style="color:var(--cyan)">●</span>' : c.active ? '<span style="color:var(--orange)">●</span>' : '<span style="color:var(--text-tertiary)">○</span>';
+      var statusLabel = c.active && dockerAvailable ? 'Active' : c.active ? 'Unreachable' : 'Inactive';
+      return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:rgba(0,0,0,0.2);margin-bottom:6px;border:1px solid ' + (c.active ? 'rgba(34,211,238,0.15)' : 'var(--border)') + '">' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="display:flex;align-items:center;gap:8px">' +
+            statusDot +
+            '<span style="font-weight:600;font-size:13px;color:var(--text-primary)">' + esc(c.name) + '</span>' +
+            '<span class="badge badge-ghost" style="font-size:10px">' + esc(c.type) + '</span>' +
+            '<span class="badge ' + (c.active && dockerAvailable ? 'badge-cyan' : c.active ? 'badge-orange' : 'badge-ghost') + '" style="font-size:10px">' + statusLabel + '</span>' +
+          '</div>' +
+          '<div style="font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary);margin-top:3px">' + esc(addr) + '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:6px;flex-shrink:0">' +
+          (!c.active ? '<button class="btn btn-sm btn-ghost" onclick="Views.docker.activateConn(\'' + esc(c.id) + '\')" style="font-size:10px;color:var(--cyan);padding:2px 8px" title="Switch to this connection">Activate</button>' : '') +
+          '<button class="btn btn-sm btn-ghost" onclick="Views.docker.removeConn(\'' + esc(c.id) + '\')" style="font-size:10px;color:var(--orange);padding:2px 8px" title="Remove connection">Remove</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  // ── Connection Actions ──
+  Views.docker.activateConn = function (id) {
+    fetch('/api/docker/connections/' + id + '/activate', { method: 'POST' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.success) {
+          Toast.success('Connection activated');
+          connections = d.connections || connections;
+          dockerAvailable = false;
+          containers = []; images = []; networks = []; volumes = []; stats = {};
+          checkDocker();
+        }
+      }).catch(function () { Toast.error('Failed to activate'); });
+  };
+
+  Views.docker.removeConn = function (id) {
+    var conn = connections.find(function (c) { return c.id === id; });
+    Modal.confirm({ title: 'Remove Connection', message: 'Remove "' + (conn ? conn.name : 'this connection') + '"? You can add it back anytime.', confirmText: 'Remove', dangerous: true }).then(function (ok) {
+      if (!ok) return;
+      fetch('/api/docker/connections/' + id, { method: 'DELETE' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.success) {
+            Toast.success('Connection removed');
+            connections = d.connections || [];
+            if (connections.length === 0) {
+              dockerAvailable = false;
+              containers = []; images = []; networks = []; volumes = []; stats = {};
+            }
+            checkDocker();
+          }
+        }).catch(function () { Toast.error('Failed to remove'); });
+    });
+  };
+
+  // ── Add Connection (opens wizard in modal) ──
+  Views.docker.showAddConnection = function () {
     var defaultSocket = (serverConfig && serverConfig.socketPath) || '/var/run/docker.sock';
+    var platform = serverConfig.serverPlatform || 'unknown';
 
-    el.innerHTML =
-      '<div class="docker-setup-wizard">' +
-
-      // Header
-      '<div class="glass-card" style="text-align:center;padding:32px 24px 24px">' +
-        '<svg viewBox="0 0 48 48" fill="none" stroke="var(--cyan)" stroke-width="1.5" width="56" height="56" style="margin-bottom:16px;opacity:0.8"><rect x="4" y="20" width="10" height="10"/><rect x="18" y="20" width="10" height="10"/><rect x="32" y="20" width="10" height="10"/><rect x="11" y="8" width="10" height="10"/><rect x="25" y="8" width="10" height="10"/><path d="M0 36c6 8 36 8 48 0"/></svg>' +
-        '<h2 style="color:var(--text-primary);margin:0 0 6px;font-size:20px">Connect to Docker</h2>' +
-        '<p class="text-secondary" style="font-size:13px;margin:0">Add a local or remote Docker engine to manage containers, images, and networks.</p>' +
-        '<p class="text-tertiary" style="font-size:11px;margin:6px 0 0">Server platform: <strong>' + (serverConfig.serverPlatform || 'unknown') + '</strong></p>' +
-      '</div>' +
-
-      // Connection Type Picker
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">' +
-
-        // Local
-        '<div class="glass-card docker-conn-card" id="docker-conn-local" onclick="Views.docker.pickConn(\'local\')" style="cursor:pointer;padding:20px;border:2px solid rgba(34,211,238,0.3);transition:all 0.2s">' +
-          '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">' +
-            '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>' +
-            '<span style="color:#22d3ee;font-weight:600;font-size:14px">Local Docker</span>' +
+    Modal.open({
+      title: 'Add Infrastructure Connection',
+      size: 'lg',
+      body:
+        '<p class="text-secondary" style="font-size:12px;margin:0 0 16px">Connect to a local or remote Docker engine. Server platform: <strong>' + esc(platform) + '</strong></p>' +
+        // Connection Type Picker
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">' +
+          '<div class="glass-card" id="modal-conn-local" onclick="Views.docker._pickModalConn(\'local\')" style="cursor:pointer;padding:16px;border:2px solid rgba(34,211,238,0.3);transition:all 0.2s">' +
+            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">' +
+              '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>' +
+              '<span style="color:#22d3ee;font-weight:600;font-size:13px">Local Docker</span>' +
+            '</div>' +
+            '<p class="text-secondary" style="font-size:11px;margin:0;line-height:1.4">Unix socket or Windows named pipe on this machine.</p>' +
           '</div>' +
-          '<p class="text-secondary" style="font-size:12px;margin:0;line-height:1.5">Docker Desktop or Docker Engine running on this machine. Connects via Unix socket or Windows named pipe.</p>' +
-          '<div style="margin-top:10px;font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary);background:rgba(0,0,0,0.2);padding:6px 10px;border-radius:6px">' + esc(defaultSocket) + '</div>' +
-        '</div>' +
-
-        // Remote
-        '<div class="glass-card docker-conn-card" id="docker-conn-remote" onclick="Views.docker.pickConn(\'remote\')" style="cursor:pointer;padding:20px;border:2px solid transparent;transition:all 0.2s">' +
-          '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">' +
-            '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>' +
-            '<span style="color:var(--text-primary);font-weight:600;font-size:14px">Remote Docker</span>' +
+          '<div class="glass-card" id="modal-conn-remote" onclick="Views.docker._pickModalConn(\'remote\')" style="cursor:pointer;padding:16px;border:2px solid transparent;transition:all 0.2s">' +
+            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">' +
+              '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>' +
+              '<span style="color:var(--text-primary);font-weight:600;font-size:13px">Remote Docker</span>' +
+            '</div>' +
+            '<p class="text-secondary" style="font-size:11px;margin:0;line-height:1.4">Docker Engine on a remote server via TCP.</p>' +
           '</div>' +
-          '<p class="text-secondary" style="font-size:12px;margin:0;line-height:1.5">Docker Engine on a remote server. Connects via TCP (port 2375 unencrypted, 2376 TLS).</p>' +
-          '<div style="margin-top:10px;font-family:var(--font-mono);font-size:10px;color:var(--text-tertiary);background:rgba(0,0,0,0.2);padding:6px 10px;border-radius:6px">tcp://your-server:2375</div>' +
         '</div>' +
-      '</div>' +
-
-      // Connection Form
-      '<div class="glass-card" id="docker-conn-form" style="margin-top:12px;padding:20px">' +
-        // Local form (default)
-        '<div id="docker-form-local">' +
+        // Name
+        '<label style="display:block;margin-bottom:12px">' +
+          '<span class="text-secondary" style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px">Connection Name</span>' +
+          '<input type="text" id="modal-conn-name" class="form-input" placeholder="e.g. Production Server" style="font-size:12px">' +
+        '</label>' +
+        // Local form
+        '<div id="modal-form-local">' +
           '<label style="display:block;margin-bottom:12px">' +
             '<span class="text-secondary" style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px">Socket Path</span>' +
-            '<input type="text" id="docker-socket-input" class="form-input" value="' + esc(defaultSocket) + '" placeholder="' + esc(defaultSocket) + '" style="font-family:var(--font-mono);font-size:12px">' +
+            '<input type="text" id="modal-socket-input" class="form-input" value="' + esc(defaultSocket) + '" style="font-family:var(--font-mono);font-size:12px">' +
           '</label>' +
         '</div>' +
-        // Remote form (hidden)
-        '<div id="docker-form-remote" style="display:none">' +
+        // Remote form
+        '<div id="modal-form-remote" style="display:none">' +
           '<div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px">' +
             '<label>' +
               '<span class="text-secondary" style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px">Host / IP</span>' +
-              '<input type="text" id="docker-host-input" class="form-input" placeholder="192.168.1.100 or docker.example.com" style="font-family:var(--font-mono);font-size:12px">' +
+              '<input type="text" id="modal-host-input" class="form-input" placeholder="192.168.1.100" style="font-family:var(--font-mono);font-size:12px">' +
             '</label>' +
             '<label>' +
               '<span class="text-secondary" style="font-size:11px;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px">Port</span>' +
-              '<input type="number" id="docker-port-input" class="form-input" value="2375" placeholder="2375" style="font-family:var(--font-mono);font-size:12px">' +
+              '<input type="number" id="modal-port-input" class="form-input" value="2375" style="font-family:var(--font-mono);font-size:12px">' +
             '</label>' +
           '</div>' +
         '</div>' +
+        // Status
+        '<div id="modal-conn-status" style="font-size:12px;font-family:var(--font-mono);min-height:20px;margin-bottom:8px"></div>',
+      footer:
+        '<button class="btn btn-ghost" onclick="Modal.close()">Cancel</button>' +
+        '<button class="btn btn-cyan" id="modal-test-btn" onclick="Views.docker._testModalConn()">Test Connection</button>' +
+        '<button class="btn btn-cyan" id="modal-save-btn" onclick="Views.docker._saveModalConn()" style="display:none">Save & Connect</button>'
+    });
+    Views.docker._modalConnType = 'local';
+  };
 
-        // Action buttons
-        '<div style="display:flex;gap:10px;align-items:center">' +
-          '<button class="btn btn-cyan" id="docker-test-btn" onclick="Views.docker.testConnection()" style="min-width:140px">Test Connection</button>' +
-          '<button class="btn btn-ghost" id="docker-save-btn" onclick="Views.docker.saveConnection()" style="display:none;min-width:100px">Save & Connect</button>' +
-          '<span id="docker-test-status" style="font-size:12px;font-family:var(--font-mono)"></span>' +
-        '</div>' +
-      '</div>' +
-
-      // AI Diagnosis Panel (hidden until error)
-      '<div id="docker-ai-diagnosis" style="display:none;margin-top:12px"></div>' +
-
-      '</div>';
-  }
-
-  // Connection type picker
-  Views.docker.pickConn = function (type) {
-    var local = document.getElementById('docker-conn-local');
-    var remote = document.getElementById('docker-conn-remote');
-    var formLocal = document.getElementById('docker-form-local');
-    var formRemote = document.getElementById('docker-form-remote');
-    if (!local || !remote) return;
-
+  Views.docker._pickModalConn = function (type) {
+    Views.docker._modalConnType = type;
+    var local = document.getElementById('modal-conn-local');
+    var remote = document.getElementById('modal-conn-remote');
+    var formLocal = document.getElementById('modal-form-local');
+    var formRemote = document.getElementById('modal-form-remote');
     if (type === 'local') {
-      local.style.borderColor = 'rgba(34,211,238,0.3)';
-      remote.style.borderColor = 'transparent';
-      local.querySelector('svg').setAttribute('stroke', '#22d3ee');
-      remote.querySelector('svg').setAttribute('stroke', 'var(--text-secondary)');
+      if (local) local.style.borderColor = 'rgba(34,211,238,0.3)';
+      if (remote) remote.style.borderColor = 'transparent';
       if (formLocal) formLocal.style.display = '';
       if (formRemote) formRemote.style.display = 'none';
     } else {
-      local.style.borderColor = 'transparent';
-      remote.style.borderColor = 'rgba(34,211,238,0.3)';
-      local.querySelector('svg').setAttribute('stroke', 'var(--text-secondary)');
-      remote.querySelector('svg').setAttribute('stroke', '#22d3ee');
+      if (local) local.style.borderColor = 'transparent';
+      if (remote) remote.style.borderColor = 'rgba(34,211,238,0.3)';
       if (formLocal) formLocal.style.display = 'none';
       if (formRemote) formRemote.style.display = '';
     }
-    // Reset status
-    var s = document.getElementById('docker-test-status');
+    var s = document.getElementById('modal-conn-status');
     if (s) s.innerHTML = '';
-    var saveBtn = document.getElementById('docker-save-btn');
-    if (saveBtn) saveBtn.style.display = 'none';
-    // Hide diagnosis
-    var diag = document.getElementById('docker-ai-diagnosis');
-    if (diag) diag.style.display = 'none';
+    var sb = document.getElementById('modal-save-btn');
+    if (sb) sb.style.display = 'none';
   };
 
-  // Test connection
-  Views.docker.testConnection = function () {
-    var btn = document.getElementById('docker-test-btn');
-    var status = document.getElementById('docker-test-status');
-    var saveBtn = document.getElementById('docker-save-btn');
-    if (!btn) return;
+  Views.docker._testModalConn = function () {
+    var btn = document.getElementById('modal-test-btn');
+    var status = document.getElementById('modal-conn-status');
+    var type = Views.docker._modalConnType;
+    var config = { type: type };
 
-    var isRemote = document.getElementById('docker-form-remote').style.display !== 'none';
-    var config = {};
-    if (isRemote) {
-      config.type = 'remote';
-      config.host = (document.getElementById('docker-host-input') || {}).value || '';
-      config.port = parseInt((document.getElementById('docker-port-input') || {}).value) || 2375;
+    if (type === 'remote') {
+      config.host = (document.getElementById('modal-host-input') || {}).value || '';
+      config.port = parseInt((document.getElementById('modal-port-input') || {}).value) || 2375;
       if (!config.host) { if (status) status.innerHTML = '<span style="color:#ff6b2b">Enter a host address</span>'; return; }
     } else {
-      config.type = 'local';
-      config.socketPath = (document.getElementById('docker-socket-input') || {}).value || '';
+      config.socketPath = (document.getElementById('modal-socket-input') || {}).value || '';
     }
-    config.platform = navigator.platform;
 
-    btn.disabled = true;
-    btn.textContent = 'Testing...';
-    if (status) status.innerHTML = '<span class="text-secondary">Connecting to Docker Engine...</span>';
+    if (btn) { btn.disabled = true; btn.textContent = 'Testing...'; }
+    if (status) status.innerHTML = '<span class="text-secondary">Connecting...</span>';
 
     fetch('/api/docker/test-connection', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(config)
     }).then(function (r) { return r.json(); }).then(function (d) {
-      btn.disabled = false;
-      btn.textContent = 'Test Connection';
-
+      if (btn) { btn.disabled = false; btn.textContent = 'Test Connection'; }
       if (d.success) {
         if (status) status.innerHTML = '<span style="color:#22d3ee">✓ Connected — Docker ' + esc(d.version) + ' (' + esc(d.os) + ')</span>';
-        if (saveBtn) saveBtn.style.display = '';
-        // Store tested config for save
-        Views.docker._testedConfig = config;
-        // Hide diagnosis on success
-        var diag = document.getElementById('docker-ai-diagnosis');
-        if (diag) diag.style.display = 'none';
+        var sb = document.getElementById('modal-save-btn');
+        if (sb) sb.style.display = '';
+        Views.docker._testedModalConfig = config;
       } else {
         if (status) status.innerHTML = '<span style="color:#ff6b2b">✗ ' + esc(d.error || 'Connection failed') + '</span>';
-        if (saveBtn) saveBtn.style.display = 'none';
-        // Auto-trigger AI diagnosis
-        Views.docker.diagnoseError(d.error || 'Connection failed', config);
       }
-    }).catch(function (e) {
-      btn.disabled = false;
-      btn.textContent = 'Test Connection';
+    }).catch(function () {
+      if (btn) { btn.disabled = false; btn.textContent = 'Test Connection'; }
       if (status) status.innerHTML = '<span style="color:#ff6b2b">✗ Network error</span>';
-      Views.docker.diagnoseError(e.message || 'Network error', config);
     });
   };
 
-  // AI diagnose connection error
-  Views.docker.diagnoseError = function (error, config) {
-    var panel = document.getElementById('docker-ai-diagnosis');
-    if (!panel) return;
+  Views.docker._saveModalConn = function () {
+    var config = Views.docker._testedModalConfig;
+    if (!config) return;
+    var name = (document.getElementById('modal-conn-name') || {}).value || '';
 
-    panel.style.display = '';
-    panel.innerHTML =
-      '<div class="briefing-card">' +
-        '<div class="briefing-header">' +
-          '<div class="briefing-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a7 7 0 0 0-7 7c0 2.4 1.2 4.5 3 5.7V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.3c1.8-1.2 3-3.3 3-5.7a7 7 0 0 0-7-7z"/><path d="M9 21h6"/></svg> AI Troubleshooter</div>' +
-        '</div>' +
-        '<div class="briefing-text" id="docker-diag-text" style="min-height:40px">' +
-          '<div class="briefing-shimmer" style="width:85%"></div><div class="briefing-shimmer" style="width:60%"></div><div class="briefing-shimmer" style="width:70%"></div>' +
-        '</div>' +
-      '</div>';
-
-    fetch('/api/docker/ai-diagnose', {
+    fetch('/api/docker/connections', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        error: error,
+        name: name || (config.host ? 'Remote ' + config.host : 'Local Docker'),
         type: config.type,
-        socketPath: config.socketPath,
-        host: config.host,
-        port: config.port,
-        platform: navigator.platform
+        socketPath: config.socketPath || null,
+        host: config.host || null,
+        port: config.port || null
       })
     }).then(function (r) { return r.json(); }).then(function (d) {
-      var el = document.getElementById('docker-diag-text');
-      if (el) {
-        el.style.whiteSpace = 'pre-wrap';
-        el.style.lineHeight = '1.6';
-        el.textContent = d.diagnosis || 'Unable to diagnose the issue.';
-      }
-    }).catch(function () {
-      var el = document.getElementById('docker-diag-text');
-      if (el) el.textContent = 'AI diagnosis unavailable. Check that Docker is installed and the daemon is running.';
-    });
-  };
-
-  // Save connection
-  Views.docker.saveConnection = function () {
-    var config = Views.docker._testedConfig;
-    if (!config) return;
-
-    var saveData = {};
-    if (config.type === 'remote') {
-      saveData = { host: config.host, port: config.port, socketPath: null };
-    } else {
-      saveData = { socketPath: config.socketPath, host: null, port: null };
-    }
-
-    fetch('/api/docker/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(saveData)
-    }).then(function (r) { return r.json(); }).then(function (d) {
       if (d.success) {
-        Toast.success('Docker connection saved');
-        dockerAvailable = true;
-        checkDocker(); // Reload everything
+        Modal.close();
+        Toast.success('Connection added');
+        connections = d.connections || [];
+        checkDocker();
       } else {
-        Toast.error('Failed to save: ' + (d.error || 'Unknown error'));
+        Toast.error('Failed to save: ' + (d.error || 'Unknown'));
       }
     }).catch(function () { Toast.error('Failed to save connection'); });
   };
 
-  // Disconnect Docker (delete saved config)
+
+  function renderUnavailable() {
+    var el = document.getElementById('docker-panel-containers');
+    if (!el) return;
+    var hasConns = connections.length > 0;
+    el.innerHTML =
+      '<div style="text-align:center;padding:40px 20px">' +
+        '<svg viewBox="0 0 48 48" fill="none" stroke="var(--text-tertiary)" stroke-width="1.5" width="48" height="48" style="margin-bottom:16px;opacity:0.5"><rect x="4" y="20" width="10" height="10"/><rect x="18" y="20" width="10" height="10"/><rect x="32" y="20" width="10" height="10"/><rect x="11" y="8" width="10" height="10"/><rect x="25" y="8" width="10" height="10"/><path d="M0 36c6 8 36 8 48 0"/></svg>' +
+        '<h3 style="color:var(--text-primary);margin:0 0 8px">' + (hasConns ? 'Docker Unreachable' : 'No Connections') + '</h3>' +
+        '<p class="text-secondary" style="font-size:13px;margin:0 0 16px">' +
+          (hasConns ? 'The active connection can\'t reach Docker. Check that the daemon is running.' : 'Add a Docker engine connection using the panel above.') +
+        '</p>' +
+        (hasConns ? '' : '<button class="btn btn-cyan" onclick="Views.docker.showAddConnection()">+ Add Connection</button>') +
+      '</div>';
+    // Hide fleet banner when unavailable
+    var banner = document.getElementById('docker-fleet-banner');
+    if (banner) banner.style.display = 'none';
+  }
+
+  // Legacy disconnect (kept for backward compat)
   Views.docker.disconnect = function () {
-    Modal.confirm({ title: 'Disconnect Docker', message: 'Remove saved Docker connection? You can reconnect anytime.', confirmText: 'Disconnect', dangerous: true }).then(function (ok) {
-      if (!ok) return;
-      fetch('/api/docker/config', { method: 'DELETE' }).then(function (r) { return r.json(); }).then(function (d) {
-        if (d.success) {
-          Toast.success('Docker disconnected');
-          dockerAvailable = false;
-          containers = []; images = []; networks = []; volumes = []; stats = {};
-          Views.docker.show(); // Re-render wizard
-        }
-      }).catch(function () { Toast.error('Failed to disconnect'); });
-    });
+    if (connections.length === 0) return;
+    var active = connections.find(function (c) { return c.active; });
+    if (active) Views.docker.removeConn(active.id);
   };
 
   function refreshActive() {
@@ -396,18 +398,20 @@
   function renderFleetBanner() {
     var el = document.getElementById('docker-fleet-banner');
     if (!el) return;
+    el.style.display = '';
     var running = containers.filter(function (c) { return c.state === 'running'; }).length;
     var stopped = containers.filter(function (c) { return c.state !== 'running'; }).length;
     var totalCpu = 0, totalMem = 0;
     Object.values(stats).forEach(function (s) { totalCpu += s.cpuPct || 0; totalMem += parseFloat(s.memUsageMB) || 0; });
 
-    el.innerHTML = '<div class="fleet-stats">' +
-      fleetStat(containers.length, 'Total', '') +
-      fleetStat(running, 'Running', 'cyan') +
-      fleetStat(stopped, 'Stopped', stopped > 0 ? 'orange' : '') +
-      fleetStat(totalCpu.toFixed(1) + '%', 'CPU', '') +
-      fleetStat(totalMem.toFixed(0) + ' MB', 'Memory', '') +
-    '</div>';
+    el.innerHTML =
+      '<div class="fleet-stats">' +
+        fleetStat(containers.length, 'Total', '') +
+        fleetStat(running, 'Running', 'cyan') +
+        fleetStat(stopped, 'Stopped', stopped > 0 ? 'orange' : '') +
+        fleetStat(totalCpu.toFixed(1) + '%', 'CPU', '') +
+        fleetStat(totalMem.toFixed(0) + ' MB', 'Memory', '') +
+      '</div>';
   }
 
   function fleetStat(value, label, color) {

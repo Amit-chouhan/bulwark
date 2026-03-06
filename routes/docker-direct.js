@@ -84,14 +84,78 @@ Diagnose the problem and give step-by-step instructions to fix it. Be specific w
   // Health check — is Docker available?
   app.get('/api/docker/status', requireAdmin, async (req, res) => {
     try {
-      const available = await docker.isAvailable();
-      res.json({ available, config: docker.loadConfig(), serverPlatform: process.platform });
+      const active = docker.getActiveConnection();
+      const available = active ? await docker.isAvailable() : false;
+      res.json({ available, config: docker.loadConfig(), activeConnection: active, serverPlatform: process.platform });
     } catch (e) {
       res.json({ available: false, error: e.message });
     }
   });
 
-  // Save config
+  // ── Multi-Connection Management ──
+
+  // List all saved connections
+  app.get('/api/docker/connections', requireAdmin, (req, res) => {
+    res.json({ connections: docker.loadConnections(), serverPlatform: process.platform });
+  });
+
+  // Add a new connection
+  app.post('/api/docker/connections', requireRole('editor'), (req, res) => {
+    try {
+      const { name, type, socketPath, host, port } = req.body;
+      const conns = docker.loadConnections();
+      // Deactivate all existing
+      conns.forEach(c => { c.active = false; });
+      const conn = {
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        name: name || (host ? 'Remote ' + host : 'Local Docker'),
+        type: type || (host ? 'remote' : 'local'),
+        socketPath: type === 'local' ? (socketPath || null) : null,
+        host: type === 'remote' ? (host || null) : null,
+        port: type === 'remote' ? (port || 2375) : null,
+        active: true,
+        added: new Date().toISOString()
+      };
+      conns.push(conn);
+      docker.saveConnections(conns);
+      res.json({ success: true, connection: conn, connections: conns });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Activate a connection (switch to it)
+  app.post('/api/docker/connections/:id/activate', requireRole('editor'), (req, res) => {
+    try {
+      const conns = docker.loadConnections();
+      const target = conns.find(c => c.id === req.params.id);
+      if (!target) return res.status(404).json({ error: 'Connection not found' });
+      conns.forEach(c => { c.active = (c.id === req.params.id); });
+      docker.saveConnections(conns);
+      res.json({ success: true, connections: conns });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Remove a connection
+  app.delete('/api/docker/connections/:id', requireRole('editor'), (req, res) => {
+    try {
+      let conns = docker.loadConnections();
+      const removed = conns.find(c => c.id === req.params.id);
+      conns = conns.filter(c => c.id !== req.params.id);
+      // If we removed the active one, activate the first remaining
+      if (removed && removed.active && conns.length > 0) {
+        conns[0].active = true;
+      }
+      docker.saveConnections(conns);
+      res.json({ success: true, connections: conns });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Legacy save config (adds connection)
   app.post('/api/docker/config', requireRole('editor'), (req, res) => {
     try {
       docker.saveConfig(req.body);
@@ -101,12 +165,13 @@ Diagnose the problem and give step-by-step instructions to fix it. Be specific w
     }
   });
 
-  // Delete config (disconnect Docker)
+  // Legacy delete config (removes active connection)
   app.delete('/api/docker/config', requireRole('editor'), (req, res) => {
     try {
-      const fs = require('fs');
-      const cfgPath = require('path').join(__dirname, '..', 'data', 'docker-config.json');
-      if (fs.existsSync(cfgPath)) fs.unlinkSync(cfgPath);
+      const conns = docker.loadConnections();
+      const filtered = conns.filter(c => !c.active);
+      if (filtered.length > 0) filtered[0].active = true;
+      docker.saveConnections(filtered);
       res.json({ success: true });
     } catch (e) {
       res.status(500).json({ error: e.message });

@@ -50,6 +50,7 @@ COPY lib/ ./lib/
 COPY data/ ./data/
 COPY docs/ ./docs/
 COPY public/ ./public/
+COPY media/ ./media/
 
 # Ensure data dirs exist with write permissions
 RUN mkdir -p /app/data/backups && chown -R bulwark:bulwark /app

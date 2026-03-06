@@ -112,6 +112,7 @@ require("./routes/auth")(app, ctx);
 app.use(requireAuth);
 app.use(audit.auditMiddleware);
 app.use(express.static(path.join(__dirname, "public")));
+app.use("/media", express.static(path.join(__dirname, "media")));
 
 // ── Docs API (serve markdown) ─────────────────────────────────────────────────
 app.get("/api/docs/getting-started", (req, res) => {

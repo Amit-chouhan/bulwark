@@ -1,70 +1,6 @@
 # Bulwark — Getting Started Guide
 
-Your entire server, one dashboard. This guide walks you through setting up Bulwark from a fresh install to a fully connected infrastructure management platform.
-
-### Getting Started
-
-- [1. Installation](#1-installation)
-- [2. First Login](#2-first-login)
-- [3. Setting Up AI (Claude & Codex)](#3-setting-up-ai-claude--codex)
-
-### Overview
-
-- [4. Dashboard](#4-dashboard)
-- [5. Metrics](#5-metrics)
-- [6. Uptime](#6-uptime)
-
-### Infrastructure
-
-- [7. Servers](#7-servers)
-- [8. Docker](#8-docker)
-- [9. PM2](#9-pm2)
-- [10. SSL / Domains](#10-ssl--domains)
-- [11. Cloudflare](#11-cloudflare)
-
-### Database
-
-- [12. Projects](#12-projects)
-- [13. SQL Editor](#13-sql-editor)
-- [14. Tables](#14-tables)
-- [15. Schema](#15-schema)
-- [16. Migrations](#16-migrations)
-- [17. Roles](#17-roles)
-- [18. Backups](#18-backups)
-- [19. AI Assistant](#19-ai-assistant)
-
-### DevOps
-
-- [20. Terminal](#20-terminal)
-- [21. Tickets](#21-tickets)
-- [22. Git](#22-git)
-- [23. Deploy](#23-deploy)
-- [24. Cron Jobs](#24-cron-jobs)
-- [25. File Manager](#25-file-manager)
-- [26. Env Variables](#26-env-variables)
-
-### Workspace
-
-- [27. Calendar](#27-calendar)
-- [28. Notes](#28-notes)
-
-### Security
-
-- [29. Security Center](#29-security-center)
-- [30. FTP](#30-ftp)
-- [31. Notifications](#31-notifications)
-
-### System
-
-- [32. Cache](#32-cache)
-- [33. Logs](#33-logs)
-- [34. Multi-Server](#34-multi-server)
-- [35. Settings](#35-settings)
-
-### Reference
-
-- [36. Keyboard Shortcuts](#36-keyboard-shortcuts)
-- [37. FAQ](#37-faq)
+Your entire server, one dashboard.
 
 ## 1. Installation
 
@@ -101,7 +37,16 @@ Default credentials:
 | Username | `admin` |
 | Password | `admin` |
 
-**Change your password immediately** after first login via Settings.
+### Secure Your Account
+
+After first login, go to **Settings** (bottom of the sidebar) and do these immediately:
+
+1. **Change your password** — Settings > My Account > Change Password. Pick something strong (8+ characters).
+2. **Change your username** — Settings > My Account. Replace "admin" with your name or email.
+3. **Enable 2FA** — Settings > Two-Factor Authentication > Enable 2FA. Scan the QR code with an authenticator app (Google Authenticator, Authy, 1Password, etc.). You'll need the 6-digit code on every login after this.
+4. **Add additional users** (optional) — Settings > User Management > + Add User. Assign roles: **admin** (full access), **editor** (can modify but not delete), **viewer** (read-only).
+
+> **Warning:** Do NOT skip changing the default password. Anyone who can reach port 3001 can log in with `admin/admin`.
 
 ## 3. Setting Up AI (Claude & Codex)
 
@@ -414,15 +359,142 @@ A: Local Dev represents the machine Bulwark is running on. It always appears and
 
 ## 8. Docker
 
-Manage Docker containers, images, volumes, and networks directly from the dashboard.
+Full Docker fleet management — containers, images, volumes, networks, system cleanup, and AI analysis. Supports **multiple connections** to local and remote Docker engines.
+
+![Docker — Infrastructure Connections, Fleet Stats, Container Cards](../media/screenshots/Docker_9.png)
+
+### Infrastructure Connections Panel
+
+The connections panel is always visible at the top of the Docker view. It lists every Docker engine you've connected, with live status:
+
+| Status | Meaning |
+|--------|---------|
+| ● Cyan "Active" | This connection is selected and Docker is reachable |
+| ● Orange "Unreachable" | This connection is selected but Docker isn't responding |
+| ○ Grey "Inactive" | Saved but not currently selected |
+
+Each connection has an **Activate** button (switch to it) and a **Remove** button (delete it). You can have as many connections as you want — only one is active at a time.
+
+### Adding a Connection
+
+1. Click **+ Add Connection** in the connections panel
+2. Choose **Local Docker** (Unix socket) or **Remote Docker** (TCP)
+3. Give it a name (e.g. "AWS Production", "GCP Dev VM", "Local Docker")
+4. Enter the socket path or host/port
+5. Click **Test Connection** — verify you see "✓ Connected — Docker X.X"
+6. Click **Save & Connect**
+
+The new connection becomes active immediately and the fleet dashboard loads its containers.
+
+### Connecting Local Docker (Docker Desktop / Docker Engine)
+
+**Default socket path:** `/var/run/docker.sock` (Linux/macOS) or `//./pipe/docker_engine` (Windows)
+
+If running Bulwark in Docker, the socket must be mounted in `docker-compose.yml`:
+
+```yaml
+volumes:
+  - /var/run/docker.sock:/var/run/docker.sock
+group_add:
+  - "0"  # Docker socket access
+```
+
+Then add a Local Docker connection with the default socket path.
+
+### Connecting Remote Docker (AWS, GCP, any server)
+
+Remote Docker engines must have TCP enabled on the target server:
+
+```bash
+# On the remote server:
+sudo mkdir -p /etc/systemd/system/docker.service.d
+sudo tee /etc/systemd/system/docker.service.d/override.conf <<'EOF'
+[Service]
+ExecStart=
+ExecStart=/usr/bin/dockerd -H fd:// -H tcp://0.0.0.0:2375
+EOF
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+```
+
+Then add a Remote Docker connection with the server's IP and port `2375`.
+
+> **Security:** Port 2375 is unencrypted. For production, use TLS on port 2376 and restrict access with firewall rules. Only expose Docker TCP on trusted networks.
+
+### Switching Between Connections
+
+Click **Activate** on any saved connection. The fleet dashboard reloads with that engine's containers, images, and stats. Previous connections stay saved — switch back anytime.
+
+### Fleet Dashboard
+
+Once connected, you see:
+
+| Tab | What it shows |
+|-----|---------------|
+| **Containers** | All containers with state, image, ports, CPU/memory stats |
+| **Deploy** | Create and start new containers from images |
+| **Images** | Pulled images with size, tags, pull/remove actions |
+| **Networks & Volumes** | Docker networks and persistent volumes |
+| **System** | Disk usage, system info, prune operations |
+| **AI Assistant** | Ask questions about your Docker fleet in natural language |
+
+### AI Fleet Intelligence
+
+Click **Analyze** for an AI-powered summary of your container fleet — resource efficiency, security observations, and optimization recommendations. Requires Claude CLI.
 
 ### Docker FAQ
 
-**Q: Docker shows "Connection failed".**
-A: Bulwark connects to the Docker Engine API via the Unix socket (`/var/run/docker.sock`). Make sure Docker is installed and the Bulwark user has permission to access the socket.
+**Q: Docker shows "No Connections" or "Docker Unreachable".**
+A: Click **+ Add Connection** and follow the setup steps above. For local Docker, make sure the daemon is running (`docker ps` in a terminal). For remote, ensure TCP is enabled and the firewall allows the port.
 
-**Q: Can I manage Docker on a remote server?**
-A: Currently Docker management is local only. For remote servers, use the Terminal to SSH in and run Docker commands.
+**Q: I added a local connection but it says "Unreachable".**
+A: If Bulwark runs in Docker, the socket must be mounted as a volume. Add `/var/run/docker.sock:/var/run/docker.sock` to your `docker-compose.yml` volumes and `group_add: ["0"]` for socket permissions. Rebuild with `docker compose up -d --build`.
+
+**Q: Can I manage Docker on AWS / GCP / remote servers?**
+A: Yes. Add a Remote Docker connection with the server's IP and port. The remote Docker daemon must have TCP enabled (see "Connecting Remote Docker" above). You can save multiple remote connections and switch between them.
+
+**Q: How do I disconnect or remove a connection?**
+A: Click **Remove** next to any connection in the panel. A confirmation dialog appears. Removing the active connection auto-activates the next one, or shows the empty state if none remain.
+
+**Q: Can I have multiple connections saved?**
+A: Yes. Save as many as you need (local, AWS, GCP, staging, production). Only one is active at a time. Click **Activate** to switch.
+
+**Q: What's the difference between Activate and Remove?**
+A: **Activate** switches which Docker engine Bulwark talks to (non-destructive, instant). **Remove** deletes the saved connection permanently (you can re-add it later).
+
+**Q: How do I set up SSH keys for a new cloud VM (GCP/AWS)?**
+A: Generate a key pair locally, then add the public key to the VM:
+
+1. Generate: `ssh-keygen -t ed25519 -f ~/.ssh/my-server -C "user@hostname"`
+2. Add the public key to the VM:
+   - **GCP:** SSH into the VM via the browser console (GCP Console → VM → SSH button), then run:
+     ```bash
+     mkdir -p ~/.ssh && echo "PASTE_PUBLIC_KEY_HERE" >> ~/.ssh/authorized_keys && chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys
+     ```
+   - **AWS:** Add the key when creating the instance, or use EC2 Instance Connect
+3. Test: `ssh -i ~/.ssh/my-server user@VM_IP "hostname"`
+
+**Q: How do I open the Docker TCP port on GCP?**
+A: Two steps — enable Docker TCP on the VM, then open the GCP firewall:
+
+1. SSH into the VM and enable TCP:
+   ```bash
+   sudo mkdir -p /etc/systemd/system/docker.service.d
+   sudo tee /etc/systemd/system/docker.service.d/override.conf <<'EOF'
+   [Service]
+   ExecStart=
+   ExecStart=/usr/bin/dockerd -H fd:// -H tcp://0.0.0.0:2375
+   EOF
+   sudo systemctl daemon-reload && sudo systemctl restart docker
+   ```
+2. GCP Console → VPC Network → Firewall → Create Firewall Rule:
+   - Name: `allow-docker-tcp`
+   - Direction: Ingress, Action: Allow
+   - Targets: All instances
+   - Source IPv4 ranges: `0.0.0.0/0` (or your IP for security)
+   - TCP port: `2375`
+3. Verify from your local machine: `curl http://VM_IP:2375/_ping` → should return `OK`
+4. Then add the connection in Bulwark via the GUI.
 
 ## 9. PM2
 
@@ -438,15 +510,77 @@ A: Yes. Click the restart button next to any process, or use the Terminal to run
 
 ## 10. SSL / Domains
 
-Manage SSL/TLS certificates and domain configurations.
+Manage SSL/TLS certificates, Nginx virtual hosts, and domain configurations.
+
+### Requirements
+
+SSL/Domains requires the **adapter service** (port 4001) running on a Linux server with:
+- **Nginx** installed and running
+- **Certbot** (Let's Encrypt client) installed
+- Ports **80** and **443** open to the internet
+- A **real domain** with DNS pointing to the server
+
+> **Note:** This feature does NOT work on local Docker Desktop or Windows. It requires a cloud Ubuntu server (AWS, GCP, etc.) with Nginx. If you see "degraded" or empty state, the adapter service isn't running.
+
+### Setting Up SSL on Ubuntu (Cloud Server)
+
+#### 1. Install Nginx + Certbot
+```bash
+sudo apt update
+sudo apt install -y nginx certbot python3-certbot-nginx
+sudo systemctl enable nginx
+```
+
+#### 2. Point Your Domain
+Add an A record in your DNS provider (Cloudflare, Route53, etc.):
+```
+A   yourdomain.com      → YOUR_SERVER_IP
+A   *.yourdomain.com    → YOUR_SERVER_IP   (wildcard, optional)
+```
+
+#### 3. Start the Adapter Service
+The adapter service runs alongside Bulwark and manages Nginx/Certbot:
+```bash
+cd dev-monitor/adapter
+npm install
+PORT=4001 npm start
+```
+
+Or with Docker, add the adapter to your `docker-compose.yml`.
+
+#### 4. Issue a Certificate
+Once the adapter is running:
+1. Go to **SSL / Domains** in Bulwark
+2. Click **+ Issue Certificate**
+3. Enter your domain (e.g. `app.yourdomain.com`)
+4. Bulwark calls Certbot, which validates via HTTP-01 challenge on port 80
+5. Certificate auto-installs in Nginx
+
+#### 5. Manage Virtual Hosts
+Create Nginx vhosts directly from the UI:
+- Add a domain with upstream (e.g. proxy to `localhost:3000`)
+- Enable SSL with one click (uses the issued certificate)
+- Edit or delete vhosts as needed
 
 ### SSL FAQ
 
+**Q: SSL / Domains shows "degraded" or is empty.**
+A: The adapter service (port 4001) isn't running. This feature requires a Linux server with Nginx and Certbot. It won't work on local Docker Desktop or Windows — deploy to a cloud server first.
+
 **Q: How do I add an SSL certificate?**
-A: Go to SSL / Domains and click **+ Add**. You can paste your certificate and key, or configure automatic renewal via Let's Encrypt.
+A: Go to SSL / Domains and click **+ Issue Certificate**. Enter your domain — Bulwark uses Let's Encrypt via Certbot to issue and auto-install the certificate in Nginx.
 
 **Q: Does it support Let's Encrypt?**
-A: Yes, via the adapter service. Configure your domain and Bulwark will handle certificate issuance and renewal.
+A: Yes. Certbot handles issuance and auto-renewal. Certificates renew automatically before expiry.
+
+**Q: Can I use my own certificate (not Let's Encrypt)?**
+A: Yes. Paste your certificate and private key manually via the adapter, or place them in the standard Nginx SSL directory and configure the vhost.
+
+**Q: Do I need port 80 open?**
+A: Yes, for the Let's Encrypt HTTP-01 challenge. Port 80 must be reachable from the internet during certificate issuance. You can close it after if you redirect all traffic to 443.
+
+**Q: Can I set this up on GCP / AWS?**
+A: Yes. Any Ubuntu server with a public IP, ports 80/443 open, and DNS pointing to it. Install Nginx + Certbot, start the adapter service, then manage everything from the Bulwark GUI.
 
 ## 11. Cloudflare
 

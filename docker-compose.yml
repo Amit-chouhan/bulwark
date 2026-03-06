@@ -18,8 +18,9 @@ services:
         condition: service_healthy
     volumes:
       - bulwark-data:/app/data
-      # Uncomment to enable Docker management:
-      # - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock
+    group_add:
+      - "0"  # Docker socket access
     restart: unless-stopped
     networks:
       - bulwark-net

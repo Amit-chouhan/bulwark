@@ -24,6 +24,9 @@
         var toc = document.getElementById('docs-toc');
         if (!body || !d.content) return;
 
+        // Fix image paths (docs are in docs/, images in media/)
+        var content = d.content.replace(/\.\.\//g, '/');
+
         // Render markdown
         if (window.marked) {
           marked.setOptions({
@@ -31,7 +34,7 @@
             breaks: true,
             headerIds: true
           });
-          body.innerHTML = '<div class="docs-rendered">' + marked.parse(d.content) + '</div>';
+          body.innerHTML = '<div class="docs-rendered">' + marked.parse(content) + '</div>';
         } else {
           body.innerHTML = '<pre style="white-space:pre-wrap;color:var(--text-primary);font-size:13px">' + escapeHtml(d.content) + '</pre>';
         }
