@@ -263,7 +263,7 @@
     fetch('/api/metrics/history?type=cpu&count=' + timeRange).then(function (r) { return r.json(); }).then(function (d) {
       if (d.data && d.data.length) {
         cpuHistory = d.data.map(function (p) {
-          return { t: new Date(p.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), v: p.value || p };
+          return { t: new Date(p.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), v: p.value || p.cpuPct || 0 };
         });
         Charts.update('m-cpu-chart',
           cpuHistory.map(function (h) { return h.t; }),
@@ -284,7 +284,7 @@
     fetch('/api/metrics/history?type=memory&count=' + timeRange).then(function (r) { return r.json(); }).then(function (d) {
       if (d.data && d.data.length) {
         memHistory = d.data.map(function (p) {
-          return { t: new Date(p.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), v: p.value || p };
+          return { t: new Date(p.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), v: p.pct || p.value || 0 };
         });
         Charts.update('m-mem-chart',
           memHistory.map(function (h) { return h.t; }),
@@ -452,7 +452,7 @@
     fetch('/api/metrics/history?type=cpu&count=' + pts).then(function (r) { return r.json(); }).then(function (d) {
       if (d.data && d.data.length) {
         cpuHistory = d.data.map(function (p) {
-          return { t: new Date(p.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), v: p.value || p };
+          return { t: new Date(p.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), v: p.value || p.cpuPct || 0 };
         });
         Charts.update('m-cpu-chart', cpuHistory.map(function (h) { return h.t; }), [{ data: cpuHistory.map(function (h) { return h.v; }) }]);
         if (d.data[0] && d.data[0].perCore) {
@@ -464,7 +464,7 @@
     fetch('/api/metrics/history?type=memory&count=' + pts).then(function (r) { return r.json(); }).then(function (d) {
       if (d.data && d.data.length) {
         memHistory = d.data.map(function (p) {
-          return { t: new Date(p.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), v: p.value || p };
+          return { t: new Date(p.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), v: p.pct || p.value || 0 };
         });
         Charts.update('m-mem-chart', memHistory.map(function (h) { return h.t; }), [{ data: memHistory.map(function (h) { return h.v; }) }]);
       }
