@@ -396,7 +396,8 @@ window.animateValue = function(el, end, duration) {
         notifications: 'Notifications',
         logs: 'Logs',
         'multi-server': 'Multi-Server',
-        settings: 'Settings'
+        settings: 'Settings',
+        docs: 'Docs / FAQ'
       };
       titleEl.textContent = titleMap[viewName] || viewName.charAt(0).toUpperCase() + viewName.slice(1);
     }

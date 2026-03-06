@@ -48,6 +48,7 @@ COPY write-config.js ./
 COPY routes/ ./routes/
 COPY lib/ ./lib/
 COPY data/ ./data/
+COPY docs/ ./docs/
 COPY public/ ./public/
 
 # Ensure data dirs exist with write permissions

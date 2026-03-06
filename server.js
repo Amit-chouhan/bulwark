@@ -113,6 +113,17 @@ app.use(requireAuth);
 app.use(audit.auditMiddleware);
 app.use(express.static(path.join(__dirname, "public")));
 
+// ── Docs API (serve markdown) ─────────────────────────────────────────────────
+app.get("/api/docs/getting-started", (req, res) => {
+  const docsPath = path.join(__dirname, "docs", "getting-started.md");
+  try {
+    const content = fs_env.readFileSync(docsPath, "utf8");
+    res.json({ content });
+  } catch {
+    res.json({ content: "# Documentation\n\nNo documentation found." });
+  }
+});
+
 // ── Audit log API ─────────────────────────────────────────────────────────────
 app.get("/api/audit", requireAdmin, (req, res) => {
   const { user, action, from, to, limit, offset } = req.query;
