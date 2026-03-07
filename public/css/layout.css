@@ -27,31 +27,55 @@
   transition: width 0.3s ease-in-out, min-width 0.3s ease-in-out;
 }
 
+/* --- Sidebar text clipping during transition --- */
+.sidebar-header,
+.sidebar-footer,
+.nav-group-header,
+.nav-item {
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* --- Logo swap (full wordmark vs icon) --- */
+.sidebar-logo-icon { display: none; }
+.sidebar-logo-full { display: block; }
+
 /* --- Sidebar Collapsed (icon rail) --- */
 .sidebar.collapsed {
   width: 52px;
   min-width: 52px;
 }
 .sidebar.collapsed .sidebar-header {
-  padding: var(--space-4) 0;
+  padding: var(--space-3) 0;
   align-items: center;
+  justify-content: center;
 }
-.sidebar.collapsed .sidebar-logo img {
-  height: 22px;
+.sidebar.collapsed .sidebar-logo {
+  display: flex;
+  justify-content: center;
+}
+.sidebar.collapsed .sidebar-logo-full {
+  display: none;
+}
+.sidebar.collapsed .sidebar-logo-icon {
+  display: block;
 }
 .sidebar.collapsed .sidebar-subtitle,
 .sidebar.collapsed .sidebar-company,
-.sidebar.collapsed .sidebar-clock,
-.sidebar.collapsed .sidebar-status-text {
+.sidebar.collapsed .sidebar-clock {
   display: none;
 }
 .sidebar.collapsed .sidebar-footer {
-  padding: var(--space-2) var(--space-1);
+  padding: var(--space-2) 0;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
 }
 .sidebar.collapsed .sidebar-status {
   justify-content: center;
+}
+.sidebar.collapsed .sidebar-status span:not(.dot) {
+  display: none;
 }
 .sidebar.collapsed .nav-group-header span,
 .sidebar.collapsed .nav-group-header .chevron,
@@ -60,7 +84,7 @@
 }
 .sidebar.collapsed .nav-group-header {
   padding: var(--space-1) 0;
-  height: 8px;
+  height: 4px;
   pointer-events: none;
 }
 .sidebar.collapsed .nav-group-items {
