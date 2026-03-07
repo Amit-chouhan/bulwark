@@ -418,6 +418,7 @@ window.animateValue = function(el, end, duration) {
         databases: 'Databases',
         pm2: 'PM2 Processes',
         ssl: 'SSL / Domains',
+        cloudflare: 'Cloudflare',
         terminal: 'Terminal',
         claude: 'Claude',
         tickets: 'Tickets',
@@ -430,7 +431,18 @@ window.animateValue = function(el, end, duration) {
         ftp: 'FTP',
         notifications: 'Notifications',
         logs: 'Logs',
+        cache: 'Cache',
+        calendar: 'Calendar',
+        notes: 'Notes',
         'multi-server': 'Multi-Server',
+        'db-projects': 'DB Projects',
+        'sql-editor': 'SQL Editor',
+        tables: 'Tables',
+        schema: 'Schema',
+        migrations: 'Migrations',
+        roles: 'Roles',
+        'db-backups': 'Backups',
+        'db-assistant': 'AI Assistant',
         mcp: 'MCP Server',
         settings: 'Settings',
         docs: 'Docs / FAQ'
@@ -652,6 +664,64 @@ window.animateValue = function(el, end, duration) {
     });
   }
 
+  // ── Sidebar Auto-Collapse ──
+  var sidebarCollapseTimer = null;
+
+  function isSidebarCollapsed() {
+    var sb = document.querySelector('.sidebar');
+    return sb && sb.classList.contains('collapsed');
+  }
+
+  function setSidebarCollapsed(collapsed) {
+    var sb = document.querySelector('.sidebar');
+    var statusBar = document.querySelector('.status-bar');
+    if (!sb) return;
+    if (collapsed) {
+      sb.classList.add('collapsed');
+      if (statusBar) statusBar.style.left = '52px';
+    } else {
+      sb.classList.remove('collapsed');
+      if (statusBar) statusBar.style.left = '240px';
+    }
+    try { localStorage.setItem('monitor_sidebarCollapsed', collapsed ? '1' : '0'); } catch(e) {}
+  }
+
+  function injectNavTooltips() {
+    var items = document.querySelectorAll('.nav-item[data-view]');
+    items.forEach(function(item) {
+      var label = item.querySelector('span:not(.nav-badge):not(.nav-fav-btn)');
+      if (label && label.textContent) {
+        item.setAttribute('data-tooltip', label.textContent.trim());
+      }
+    });
+  }
+
+  function initSidebarCollapse() {
+    var sb = document.querySelector('.sidebar');
+    if (!sb) return;
+    injectNavTooltips();
+
+    // Restore saved state
+    try {
+      var saved = localStorage.getItem('monitor_sidebarCollapsed');
+      if (saved === '1') setSidebarCollapsed(true);
+    } catch(e) {}
+
+    sb.addEventListener('mouseenter', function() {
+      if (sidebarCollapseTimer) { clearTimeout(sidebarCollapseTimer); sidebarCollapseTimer = null; }
+      if (isSidebarCollapsed()) setSidebarCollapsed(false);
+    });
+
+    sb.addEventListener('mouseleave', function(e) {
+      // Brief delay so quick mouse movements don't flicker
+      if (sidebarCollapseTimer) clearTimeout(sidebarCollapseTimer);
+      sidebarCollapseTimer = setTimeout(function() {
+        setSidebarCollapsed(true);
+        sidebarCollapseTimer = null;
+      }, 400);
+    });
+  }
+
   // ── Topbar Clock ──
   function updateClock() {
     var clockEl = document.getElementById('sidebar-clock');
@@ -710,6 +780,7 @@ window.animateValue = function(el, end, duration) {
     injectFavStars();
     renderFavoritesGroup();
     injectReorderButtons();
+    initSidebarCollapse();
 
     // Start clock
     updateClock();
