@@ -468,6 +468,38 @@ module.exports = function (app, ctx) {
     res.status(200).json({ success: true });
   });
 
+  // ── Test endpoint (for GUI — bypasses HTTP transport handshake) ────────────
+
+  app.post('/api/mcp/test', ctx.requireAuth, async (req, res) => {
+    const { method, params } = req.body;
+    if (!method) return res.status(400).json({ error: 'method required' });
+    try {
+      const server = createMcpServer();
+      const { InMemoryTransport } = require('@modelcontextprotocol/sdk/inMemory.js');
+      const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      const client = new Client({ name: 'bulwark-test', version: '1.0.0' });
+      await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+      let result;
+      if (method === 'tools/list') {
+        result = await client.listTools();
+      } else if (method === 'resources/list') {
+        result = await client.listResources();
+      } else if (method === 'prompts/list') {
+        result = await client.listPrompts();
+      } else if (method === 'tools/call') {
+        result = await client.callTool(params || {});
+      } else {
+        result = { error: 'Unknown method: ' + method };
+      }
+      await client.close();
+      await server.close();
+      res.json(result);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // ── MCP connection info endpoint (for UI) ─────────────────────────────────
 
   app.get('/api/mcp/info', ctx.requireAuth, (req, res) => {
@@ -478,7 +510,7 @@ module.exports = function (app, ctx) {
       url: mcpUrl,
       transport: 'streamable-http',
       version: '2.1.0',
-      tools: 16,
+      tools: 18,
       resources: 2,
       prompts: 4,
       instructions: {

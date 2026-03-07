@@ -110,69 +110,29 @@
     }
   };
 
-  window.mcpTestToolsList = function() {
+  function mcpTest(method, params, loadingText) {
     var el = document.getElementById('mcp-test-result');
-    if (el) el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-secondary)">Testing...</div>';
+    if (el) el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-secondary)">' + (loadingText || 'Testing...') + '</div>';
 
-    fetch('/mcp', {
+    var body = { method: method };
+    if (params) body.params = params;
+
+    fetch('/api/mcp/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
+      body: JSON.stringify(body)
     }).then(function(r) { return r.json(); }).then(function(data) {
       testResult = data;
       renderTestResult(data);
     }).catch(function(err) {
       renderTestResult({ error: err.message });
     });
-  };
+  }
 
-  window.mcpTestResourcesList = function() {
-    var el = document.getElementById('mcp-test-result');
-    if (el) el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-secondary)">Testing...</div>';
-
-    fetch('/mcp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'resources/list' })
-    }).then(function(r) { return r.json(); }).then(function(data) {
-      testResult = data;
-      renderTestResult(data);
-    }).catch(function(err) {
-      renderTestResult({ error: err.message });
-    });
-  };
-
-  window.mcpTestPromptsList = function() {
-    var el = document.getElementById('mcp-test-result');
-    if (el) el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-secondary)">Testing...</div>';
-
-    fetch('/mcp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'prompts/list' })
-    }).then(function(r) { return r.json(); }).then(function(data) {
-      testResult = data;
-      renderTestResult(data);
-    }).catch(function(err) {
-      renderTestResult({ error: err.message });
-    });
-  };
-
-  window.mcpTestCallTool = function() {
-    var el = document.getElementById('mcp-test-result');
-    if (el) el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-secondary)">Calling get_system_metrics...</div>';
-
-    fetch('/mcp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'get_system_metrics', arguments: {} } })
-    }).then(function(r) { return r.json(); }).then(function(data) {
-      testResult = data;
-      renderTestResult(data);
-    }).catch(function(err) {
-      renderTestResult({ error: err.message });
-    });
-  };
+  window.mcpTestToolsList = function() { mcpTest('tools/list'); };
+  window.mcpTestResourcesList = function() { mcpTest('resources/list'); };
+  window.mcpTestPromptsList = function() { mcpTest('prompts/list'); };
+  window.mcpTestCallTool = function() { mcpTest('tools/call', { name: 'get_system_metrics', arguments: {} }, 'Calling get_system_metrics...'); };
 
   window.copyCursorConfig = function() {
     if (!mcpInfo) return;
