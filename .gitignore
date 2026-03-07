@@ -4,14 +4,20 @@ sessions.json
 ecosystem.config.js
 .env
 
-# Runtime data (user-specific)
+# Runtime data (user-specific, never commit)
 data/credentials.json
+data/credentials-vault.json
 data/audit-log.json
+data/query-history.json
+data/saved-queries.json
+data/db-projects.json
+data/settings.json
 data/backups/
 data/repos/
 data/.git-ssh-key-*
 data/users.json
 data/sessions.json
+cookies.txt
 
 # Logo drafts
 media/logo-save/
