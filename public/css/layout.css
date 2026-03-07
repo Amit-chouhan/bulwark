@@ -163,6 +163,38 @@
   justify-content: center;
 }
 
+/* --- Favorite Star --- */
+.nav-item .nav-fav-btn {
+  margin-left: auto;
+  width: 14px;
+  height: 14px;
+  opacity: 0;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  transition: opacity 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.nav-item:hover .nav-fav-btn {
+  opacity: 0.6;
+}
+.nav-item .nav-fav-btn:hover {
+  opacity: 1;
+  color: var(--cyan);
+}
+.nav-item .nav-fav-btn.is-fav {
+  opacity: 1;
+  color: var(--cyan);
+}
+/* Favorites group styling */
+#nav-group-favorites {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-1);
+  margin-bottom: var(--space-1);
+}
+#nav-group-favorites .nav-group-header span {
+  color: var(--cyan);
+}
+
 /* --- Sidebar Footer --- */
 .sidebar-footer {
   padding: var(--space-3) var(--space-4);

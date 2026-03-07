@@ -395,7 +395,7 @@ window.animateValue = function(el, end, duration) {
       targetEl.classList.add('active');
     }
 
-    // Update nav active state
+    // Update nav active state (including favorites group)
     var navItems = document.querySelectorAll('.nav-item');
     for (var j = 0; j < navItems.length; j++) {
       var item = navItems[j];
@@ -488,6 +488,76 @@ window.animateValue = function(el, end, duration) {
     }
   }
 
+  // ── Sidebar Favorites ──
+  var STAR_SVG = '<svg class="nav-fav-btn" viewBox="0 0 16 16" width="14" height="14"><polygon points="8,1 10.2,5.5 15,6.2 11.5,9.6 12.4,14.4 8,12 3.6,14.4 4.5,9.6 1,6.2 5.8,5.5" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>';
+  var STAR_FILLED_SVG = '<svg class="nav-fav-btn is-fav" viewBox="0 0 16 16" width="14" height="14"><polygon points="8,1 10.2,5.5 15,6.2 11.5,9.6 12.4,14.4 8,12 3.6,14.4 4.5,9.6 1,6.2 5.8,5.5" stroke="currentColor" stroke-width="1.2" fill="currentColor"/></svg>';
+
+  function getFavorites() {
+    try { return JSON.parse(localStorage.getItem('monitor_favorites') || '[]'); } catch(e) { return []; }
+  }
+  function saveFavorites(favs) {
+    try { localStorage.setItem('monitor_favorites', JSON.stringify(favs)); } catch(e) {}
+  }
+
+  window.toggleFavorite = function(viewName, e) {
+    if (e) { e.stopPropagation(); e.preventDefault(); }
+    var favs = getFavorites();
+    var idx = favs.indexOf(viewName);
+    if (idx >= 0) favs.splice(idx, 1);
+    else favs.push(viewName);
+    saveFavorites(favs);
+    injectFavStars();
+    renderFavoritesGroup();
+  };
+
+  function injectFavStars() {
+    var favs = getFavorites();
+    var items = document.querySelectorAll('.sidebar-nav > .nav-group:not(#nav-group-favorites) .nav-item[data-view]');
+    items.forEach(function(item) {
+      var view = item.getAttribute('data-view');
+      // Remove existing star
+      var old = item.querySelector('.nav-fav-btn');
+      if (old) old.parentElement.removeChild(old);
+      // Add star
+      var wrapper = document.createElement('span');
+      wrapper.innerHTML = favs.indexOf(view) >= 0 ? STAR_FILLED_SVG : STAR_SVG;
+      var star = wrapper.firstChild;
+      star.addEventListener('click', function(e) { window.toggleFavorite(view, e); });
+      item.appendChild(star);
+    });
+  }
+
+  function renderFavoritesGroup() {
+    var favs = getFavorites();
+    var group = document.getElementById('nav-group-favorites');
+    var container = document.getElementById('favorites-items');
+    if (!group || !container) return;
+
+    if (favs.length === 0) {
+      group.style.display = 'none';
+      container.innerHTML = '';
+      return;
+    }
+
+    group.style.display = '';
+    var html = '';
+    favs.forEach(function(viewName) {
+      // Find the original nav item to clone its icon and label
+      var orig = document.querySelector('.sidebar-nav > .nav-group:not(#nav-group-favorites) .nav-item[data-view="' + viewName + '"]');
+      if (!orig) return;
+      var svg = orig.querySelector('svg:not(.nav-fav-btn)');
+      var label = orig.querySelector('span:not(.nav-badge)');
+      if (!svg || !label) return;
+      var isActive = (window.state && window.state.currentView === viewName) ? ' active' : '';
+      html += '<div class="nav-item' + isActive + '" data-view="' + viewName + '" onclick="switchView(\'' + viewName + '\')">' +
+        svg.outerHTML +
+        '<span>' + label.textContent + '</span>' +
+        '<svg class="nav-fav-btn is-fav" viewBox="0 0 16 16" width="14" height="14" onclick="toggleFavorite(\'' + viewName + '\', event)"><polygon points="8,1 10.2,5.5 15,6.2 11.5,9.6 12.4,14.4 8,12 3.6,14.4 4.5,9.6 1,6.2 5.8,5.5" stroke="currentColor" stroke-width="1.2" fill="currentColor"/></svg>' +
+      '</div>';
+    });
+    container.innerHTML = html;
+  }
+
   // ── Topbar Clock ──
   function updateClock() {
     var clockEl = document.getElementById('sidebar-clock');
@@ -540,6 +610,10 @@ window.animateValue = function(el, end, duration) {
   document.addEventListener('DOMContentLoaded', function () {
     // Restore nav group collapsed states
     restoreNavGroupState();
+
+    // Inject favorite stars and build favorites group
+    injectFavStars();
+    renderFavoritesGroup();
 
     // Start clock
     updateClock();

@@ -44,6 +44,15 @@
       </div>
 
       <nav class="sidebar-nav">
+        <!-- Favorites (dynamic, hidden when empty) -->
+        <div class="nav-group" id="nav-group-favorites" style="display:none">
+          <div class="nav-group-header" onclick="toggleNavGroup('favorites')">
+            <span>Favorites</span>
+            <svg class="chevron" width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M4.5 2L8.5 6L4.5 10" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </div>
+          <div class="nav-group-items" id="favorites-items"></div>
+        </div>
+
         <!-- Overview -->
         <div class="nav-group" id="nav-group-overview">
           <div class="nav-group-header" onclick="toggleNavGroup('overview')">
