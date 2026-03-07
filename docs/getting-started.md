@@ -1648,15 +1648,12 @@ Connect AI agents (Claude Desktop, Claude Code, Cursor, VS Code, Windsurf, or an
 
 ### What You See
 
-- **Connection Info** — Endpoint URL (e.g. `https://your-server.com/mcp`), transport type, live status indicator
-- **Stats** — Tool count (18), Resource count (2), Prompt count (4)
-- **Test Panel** — four buttons to test the MCP endpoint directly from the browser:
-  - **List Tools** — returns all 18 available tools with descriptions and parameter schemas
-  - **List Resources** — returns the 2 data resources (server overview, uptime checks)
-  - **List Prompts** — returns the 4 pre-built prompt templates
-  - **Call get_system_metrics** — executes a real tool call and shows CPU, memory, disk data
-- **Connect Instructions** — copy-paste configs for Claude Desktop, Claude Code CLI, and curl
-- **Tools Reference** — all 18 tools in a grid with read/write/destructive safety badges
+- **Connection Info** — Endpoint URL, transport type, version, live status dot. Copy buttons for Claude Desktop config, Claude Code CLI command, and curl.
+- **Command Bar** — Type `/` to search across all tools, resources, and prompts with fuzzy matching. Use arrow keys to navigate, Enter/Tab to select, Escape to clear. Selecting a tool opens the playground form; selecting a prompt runs it; selecting a resource reads its data.
+- **Prompt Action Cards** — Quick-launch cards for the 4 built-in prompts (diagnose server, incident report, security audit, daily briefing). Click a card to run it. Prompts with required arguments (like incident report) open a modal for you to fill in the details.
+- **Tool Playground** — When you select a tool (via command bar or tool grid), a schema-driven form appears with the correct input fields auto-generated from the tool's parameter schema: text inputs, number fields, dropdowns for enums, checkboxes for booleans, textareas for SQL/queries. Click **Run Tool** (or press `Ctrl+Enter`) to execute. Results display as formatted JSON with success/error indicators. **Copy JSON-RPC** and **Copy curl** buttons let you export the exact request.
+- **Tool Grid** — All 18 tools grouped by category (System, Docker, Database, Tickets, Deploy, Git, Security, Alerts, Uptime) with read/write/destructive safety badges and parameter counts. Click any tool to open it in the playground.
+- **Request Log** — Session history table showing every MCP call with timestamp, method, parameters, status dot (cyan=success, orange=error), and response time in ms.
 
 ### How MCP Works
 

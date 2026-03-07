@@ -24,8 +24,10 @@ Git author: Bulwark Studio <hello@bulwark.studio>
 - SDK: `@modelcontextprotocol/sdk` + Zod schemas
 - Tools expose: system metrics, Docker, DB, uptime, tickets, deploy, security, notifications
 - Tool annotations: `readOnlyHint` for safe reads, `destructiveHint` for dangerous actions
-- Resources: server info, metrics history, container list, open tickets
+- Resources: server overview, uptime checks
 - Prompts: diagnose_server, incident_report, security_audit, daily_briefing
+- GUI test endpoint: `POST /api/mcp/test` uses InMemoryTransport (bypasses HTTP handshake)
+- GUI playground: `/` command bar with fuzzy search, schema-driven param forms, prompt action cards, request log
 
 ## Remote Monitoring Agent
 - SaaS Bulwark can't monitor localhost (it's a cloud container)
@@ -90,7 +92,7 @@ calendar.js          → Calendar + scheduling with AI
 briefing.js          → Daily briefings + AI summaries
 cloudflare.js        → Cloudflare DNS/tunnel management
 credentials.js       → AES-256-GCM credential vault
-mcp.js               → MCP server (Streamable HTTP, 18 tools, 2 resources, 4 prompts)
+mcp.js               → MCP server (Streamable HTTP, 18 tools, 2 resources, 4 prompts) + GUI test endpoint
 ```
 
 ### Lib Modules (16)
