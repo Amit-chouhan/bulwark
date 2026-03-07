@@ -1334,18 +1334,51 @@ A: Yes. Admins can add users in Settings > User Management. Each user gets a rol
 
 ---
 
+## 36. MCP Server
+
+Connect AI agents (Claude Desktop, Claude Code, Cursor, VS Code) to Bulwark via the Model Context Protocol.
+
+### What You See
+
+- **Connection Info** — Endpoint URL, transport type, tool/resource/prompt counts
+- **Test Panel** — List Tools, List Resources, List Prompts, Call get_system_metrics buttons with JSON response viewer
+- **Connect Instructions** — Copy-paste configs for Claude Desktop, Claude Code CLI, and curl
+- **Tools Reference** — All 18 tools with read/write/destructive badges
+
+### MCP FAQ
+
+**Q: What is MCP?**
+A: Model Context Protocol — an open standard that lets AI agents (Claude, Cursor, etc.) securely connect to external tools and data sources. Bulwark's MCP server exposes system metrics, Docker, databases, tickets, deploy, git, and security features as AI-callable tools.
+
+**Q: How do I connect Claude Desktop?**
+A: Click **Copy Config** in the Claude Desktop section, paste it into your `claude_desktop_config.json`, and replace `YOUR_SESSION_TOKEN` with your Bulwark session cookie value (found in browser DevTools > Application > Cookies > `monitor_session`).
+
+**Q: How do I connect Claude Code?**
+A: Click **Copy Command** in the Claude Code section and run it in your terminal. It registers Bulwark as an MCP server via `claude mcp add`.
+
+**Q: What tools are available?**
+A: 18 tools covering system metrics, processes, uptime monitoring, Docker containers, database queries, support tickets, deployments, git operations, security scores, and notifications. Each tool has safety annotations (readOnly, destructive) so AI agents handle them appropriately.
+
+**Q: Is it secure?**
+A: Yes. Every MCP request requires a valid Bulwark session cookie. The MCP server is auth-gated — unauthenticated requests are rejected. In SaaS mode, each customer's MCP server is isolated in their container sandbox.
+
+**Q: Can I use this with Cursor or VS Code?**
+A: Yes. Any MCP-compatible client can connect using the Streamable HTTP transport. Add the endpoint URL and auth header to your client's MCP configuration.
+
+---
+
 ## Reference
 
 ---
 
-## 36. Keyboard Shortcuts
+## 37. Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
 | `Ctrl + Backtick` | Toggle terminal drawer |
 | `Ctrl + Shift + Backtick` | Cycle terminal size (half / full / mini) |
 
-## 37. FAQ
+## 38. FAQ
 
 ### General
 

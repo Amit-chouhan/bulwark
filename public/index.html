@@ -240,6 +240,10 @@
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" width="16" height="16" stroke-width="1.5"><circle cx="10" cy="4" r="2"/><circle cx="4" cy="14" r="2"/><circle cx="16" cy="14" r="2"/><line x1="10" y1="6" x2="4" y2="12"/><line x1="10" y1="6" x2="16" y2="12"/></svg>
               <span>Multi-Server</span>
             </div>
+            <div class="nav-item" data-view="mcp" onclick="switchView('mcp')">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" width="16" height="16" stroke-width="1.5"><circle cx="10" cy="10" r="3"/><path d="M10 2v3M10 15v3M2 10h3M15 10h3"/><circle cx="10" cy="10" r="7"/></svg>
+              <span>MCP Server</span>
+            </div>
             <div class="nav-item" data-view="settings" onclick="switchView('settings')">
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" width="16" height="16" stroke-width="1.5"><circle cx="10" cy="10" r="3"/><path d="M10 1v3M10 16v3M1 10h3M16 10h3M3.5 3.5l2 2M14.5 14.5l2 2M3.5 16.5l2-2M14.5 5.5l2-2"/></svg>
               <span>Settings</span>
@@ -316,6 +320,7 @@
         <div class="view" id="view-cache"></div>
         <div class="view" id="view-logs"></div>
         <div class="view" id="view-multi-server"></div>
+        <div class="view" id="view-mcp"></div>
         <div class="view" id="view-settings"></div>
         <div class="view" id="view-docs"></div>
       </div>
@@ -377,6 +382,7 @@
   <script src="/js/views/cache.js"></script>
   <script src="/js/views/logs.js"></script>
   <script src="/js/views/multi-server.js"></script>
+  <script src="/js/views/mcp.js"></script>
   <script src="/js/views/settings.js"></script>
   <script src="/js/views/docs.js"></script>
   <!-- Notification panel — outside main-content to avoid overflow clipping -->

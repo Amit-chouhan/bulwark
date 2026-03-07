@@ -3,7 +3,7 @@
 ## Overview
 Enterprise server management platform. Express.js + Socket.IO on port 3001.
 Vanilla JS frontend — no React, no build step, no bundler.
-32 route modules | 16 libs | 34 views | 280+ endpoints | 4 npm deps.
+33 route modules | 16 libs | 35 views | 280+ endpoints | 6 npm deps.
 Repo: https://github.com/bulwark-studio/bulwark | License: AGPL-3.0
 Git author: Bulwark Studio <hello@bulwark.studio>
 
@@ -46,7 +46,7 @@ cd dev-monitor && npm install && npm start
 ### Server (orchestrator)
 ```
 server.js                    → Express + Socket.IO setup, auth middleware, intervals, .env loader
-routes/                      → 31 route modules
+routes/                      → 33 route modules
 lib/                         → 13 shared modules
 adapter/                     → Proxy to ServerKit (port 4001) for Docker/DB/Security/SSL/Cron/FTP
 data/                        → Runtime JSON stores (uptime, notifications, envvars, agents,
@@ -56,7 +56,7 @@ data/                        → Runtime JSON stores (uptime, notifications, env
 ### .env Loader (built-in, no dotenv dependency)
 Custom 6-line parser in server.js reads `dev-monitor/.env` at startup. Sets `process.env[key]` only for keys not already set. Supports `KEY=VALUE` format, ignores comments (#) and blank lines.
 
-### Route Modules (32)
+### Route Modules (33)
 ```
 auth.js              → Login, logout, session, 2FA setup/verify
 system.js            → CPU, memory, disk, processes, server info (dynamic git cwd)
@@ -90,6 +90,7 @@ calendar.js          → Calendar + scheduling with AI
 briefing.js          → Daily briefings + AI summaries
 cloudflare.js        → Cloudflare DNS/tunnel management
 credentials.js       → AES-256-GCM credential vault
+mcp.js               → MCP server (Streamable HTTP, 18 tools, 2 resources, 4 prompts)
 ```
 
 ### Lib Modules (16)
@@ -135,7 +136,7 @@ public/
     charts.js                → Chart.js wrappers
     modal.js                 → Modal.open/close/confirm/loading
     toast.js                 → Toast notification system
-    views/                   → 34 self-registering view modules
+    views/                   → 35 self-registering view modules
 ```
 
 ### ViewRegistry Pattern
@@ -338,10 +339,10 @@ curl -b "monitor_session=TOKEN" http://localhost:3001/api/tickets
 curl -b "monitor_session=TOKEN" http://localhost:3001/api/db/tables
 ```
 
-## 34 Sidebar Views
+## 35 Sidebar Views
 Overview: Dashboard, Metrics, Uptime
 Infrastructure: Servers, Docker, PM2, SSL/Domains, Cloudflare
 Database: SQL Editor, Tables, Schema, Migrations, Roles, Backups, DB Projects, DB Assistant
 Operations: Terminal, Claude, Tickets, Git, Deploy, Cron Jobs, File Manager, Env Variables
 Security: Security Center, Credentials, FTP, Notifications
-System: Logs, Multi-Server, Calendar, Briefing, Notes, Cache, Settings
+System: MCP Server, Cache, Logs, Multi-Server, Calendar, Briefing, Notes, Settings
