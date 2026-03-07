@@ -163,6 +163,35 @@
   justify-content: center;
 }
 
+/* --- Section Reorder Arrows --- */
+.nav-reorder {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+  margin-right: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.nav-group-header:hover .nav-reorder {
+  opacity: 1;
+}
+.nav-reorder-btn {
+  width: 12px;
+  height: 12px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  border-radius: 3px;
+  transition: color 0.1s, background 0.1s;
+}
+.nav-reorder-btn:hover {
+  color: var(--cyan);
+  background: rgba(34, 211, 238, 0.1);
+}
+.nav-reorder-btn.disabled {
+  opacity: 0.2;
+  pointer-events: none;
+}
+
 /* --- Favorite Star --- */
 .nav-item .nav-fav-btn {
   margin-left: auto;

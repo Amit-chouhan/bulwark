@@ -558,6 +558,100 @@ window.animateValue = function(el, end, duration) {
     container.innerHTML = html;
   }
 
+  // ── Sidebar Section Reordering ──
+  var DEFAULT_GROUP_ORDER = ['favorites','overview','infrastructure','database','devops','workspace','security','system'];
+
+  function getGroupOrder() {
+    try { return JSON.parse(localStorage.getItem('monitor_navOrder') || 'null') || DEFAULT_GROUP_ORDER; }
+    catch(e) { return DEFAULT_GROUP_ORDER; }
+  }
+  function saveGroupOrder(order) {
+    try { localStorage.setItem('monitor_navOrder', JSON.stringify(order)); } catch(e) {}
+  }
+
+  function applySavedGroupOrder() {
+    var nav = document.querySelector('.sidebar-nav');
+    if (!nav) return;
+    var order = getGroupOrder();
+    // Collect all group elements by id
+    var groups = {};
+    var els = nav.querySelectorAll(':scope > .nav-group');
+    els.forEach(function(el) {
+      var id = (el.id || '').replace('nav-group-', '');
+      if (id) groups[id] = el;
+    });
+    // Append in saved order (moves existing DOM nodes)
+    order.forEach(function(id) {
+      if (groups[id]) nav.appendChild(groups[id]);
+      delete groups[id];
+    });
+    // Append any remaining groups not in saved order
+    Object.keys(groups).forEach(function(id) { nav.appendChild(groups[id]); });
+  }
+
+  function getCurrentGroupOrder() {
+    var nav = document.querySelector('.sidebar-nav');
+    if (!nav) return DEFAULT_GROUP_ORDER;
+    var order = [];
+    nav.querySelectorAll(':scope > .nav-group').forEach(function(el) {
+      var id = (el.id || '').replace('nav-group-', '');
+      if (id) order.push(id);
+    });
+    return order;
+  }
+
+  window.moveNavGroup = function(groupId, dir, e) {
+    if (e) { e.stopPropagation(); e.preventDefault(); }
+    var nav = document.querySelector('.sidebar-nav');
+    var group = document.getElementById('nav-group-' + groupId);
+    if (!nav || !group) return;
+
+    var siblings = Array.prototype.slice.call(nav.querySelectorAll(':scope > .nav-group'));
+    var idx = siblings.indexOf(group);
+    if (idx < 0) return;
+
+    var targetIdx = idx + dir;
+    // Skip past favorites group (always stays at top)
+    if (dir === -1 && targetIdx === 0 && siblings[0].id === 'nav-group-favorites') return;
+    if (targetIdx < 0 || targetIdx >= siblings.length) return;
+
+    var target = siblings[targetIdx];
+    if (target.id === 'nav-group-favorites') return; // never move past favorites
+
+    if (dir === -1) {
+      nav.insertBefore(group, target);
+    } else {
+      nav.insertBefore(target, group);
+    }
+
+    saveGroupOrder(getCurrentGroupOrder());
+    injectReorderButtons();
+  };
+
+  function injectReorderButtons() {
+    var nav = document.querySelector('.sidebar-nav');
+    if (!nav) return;
+    var groups = nav.querySelectorAll(':scope > .nav-group:not(#nav-group-favorites)');
+    var total = groups.length;
+
+    groups.forEach(function(group, i) {
+      var header = group.querySelector('.nav-group-header');
+      if (!header) return;
+      var groupId = (group.id || '').replace('nav-group-', '');
+
+      // Remove existing reorder buttons
+      var old = header.querySelector('.nav-reorder');
+      if (old) old.parentElement.removeChild(old);
+
+      var wrap = document.createElement('span');
+      wrap.className = 'nav-reorder';
+      wrap.innerHTML =
+        '<svg class="nav-reorder-btn' + (i === 0 ? ' disabled' : '') + '" viewBox="0 0 12 12" width="12" height="12" onclick="moveNavGroup(\'' + groupId + '\',-1,event)"><path d="M2 8L6 4l4 4" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>' +
+        '<svg class="nav-reorder-btn' + (i === total - 1 ? ' disabled' : '') + '" viewBox="0 0 12 12" width="12" height="12" onclick="moveNavGroup(\'' + groupId + '\',1,event)"><path d="M2 4L6 8l4-4" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>';
+      header.insertBefore(wrap, header.querySelector('.chevron'));
+    });
+  }
+
   // ── Topbar Clock ──
   function updateClock() {
     var clockEl = document.getElementById('sidebar-clock');
@@ -611,9 +705,11 @@ window.animateValue = function(el, end, duration) {
     // Restore nav group collapsed states
     restoreNavGroupState();
 
-    // Inject favorite stars and build favorites group
+    // Restore sidebar section order, then inject favorites and reorder buttons
+    applySavedGroupOrder();
     injectFavStars();
     renderFavoritesGroup();
+    injectReorderButtons();
 
     // Start clock
     updateClock();
