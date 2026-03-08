@@ -3,6 +3,9 @@ users.json
 sessions.json
 ecosystem.config.js
 .env
+.env.local
+.env.*
+!.env.example
 
 # Runtime data (user-specific, never commit)
 data/credentials.json
@@ -19,5 +22,10 @@ data/users.json
 data/sessions.json
 cookies.txt
 
-# Logo drafts
+# Internal — NOT for public repo
+to-do-dev-monitor/
+landing/
 media/logo-save/
+
+# Access notes (local only)
+NOTES.md
