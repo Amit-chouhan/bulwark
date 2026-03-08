@@ -249,6 +249,7 @@ require("./routes/security-enhanced")(app, ctx);
 require("./routes/notification-center")(app, ctx);
 require("./routes/calendar")(app, ctx);
 require("./routes/mcp")(app, ctx);
+require("./routes/github-hub")(app, ctx);
 
 // Neural Cache — register API routes
 neuralCache.registerRoutes(app, ctx);

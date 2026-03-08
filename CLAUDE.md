@@ -262,7 +262,8 @@ GET  /api/db/migrations          → Applied vs filesystem migrations
 GET  /api/db/migrations/pending  → Unapplied migration files
 POST /api/db/migrations/run      → Execute migration SQL file
 POST /api/db/migrations/test     → Docker test-run (spin up PG, apply, validate, destroy)
-POST /api/db/migrations/diff     → Compare live DB vs schema.sql
+POST /api/db/migrations/diff     → Compare live DB vs schema.sql + migrations
+POST /api/db/migrations/audit    → Deep deployment audit (tables, cols, indexes, triggers, FKs, extensions, functions, migrations, seed data — graded A/B/C/F)
 POST /api/db/backup              → pg_dump to data/backups/
 GET  /api/db/backups             → List backup files
 GET  /api/db/backups/ai/strategy → AI backup strategy (health score, DR plan, recommendations)
@@ -286,13 +287,19 @@ async function askClaudeJSON(prompt) → Promise<object>
 - DROP/TRUNCATE/ALTER: blocked without `?allow_ddl=true`
 - All queries logged to `data/query-history.json`
 
+### Migration Compatibility
+- Auto-detects `name` vs `filename` column in `schema_migrations` table
+- Schema diff parses both `schema.sql` AND migration files for CREATE TABLE
+- Migration files expected at `REPO_DIR/supabase/migrations/` (mount via volume)
+- Deployment audit checks 9 categories: tables, columns, indexes, triggers, FKs, extensions, functions, migrations, seed data
+
 ### 6 Frontend Views (sidebar "Database" group)
 | View | File | Description |
 |------|------|-------------|
 | SQL Editor | `views/sql-editor.js` | CodeMirror 5 + autocomplete + history + saved queries + Ask Claude |
 | Tables | `views/tables.js` | Two-panel: table list + Columns/Data/Constraints/FK/Indexes tabs |
 | Schema | `views/schema.js` | Functions, Triggers, Extensions, Indexes tabs |
-| Migrations | `views/migrations.js` | Applied/pending status, Docker test-run, schema diff |
+| Migrations | `views/migrations.js` | Applied/pending status, Docker test-run, schema diff, deployment audit |
 | Roles | `views/roles.js` | AI security audit, permission heatmap, AI role generator |
 | Backups | `views/db-backups.js` | AI backup strategy, DR plan, age-based health indicators |
 
