@@ -93,7 +93,11 @@ window.animateValue = function(el, end, duration) {
   fetch('/api/branding').then(function(r) { return r.json(); }).then(function(b) {
     window.appName = b.name || 'Bulwark';
     var logo = document.querySelector('.sidebar-logo');
-    if (logo) logo.textContent = b.name.toUpperCase();
+    if (logo) {
+      var upper = (b.name || 'Bulwark').toUpperCase();
+      logo.innerHTML = '<span class="sidebar-logo-full">' + upper + '</span>' +
+        '<span class="sidebar-logo-icon">' + upper.charAt(0) + '</span>';
+    }
     document.title = b.name;
   }).catch(function() { window.appName = 'Bulwark'; });
 

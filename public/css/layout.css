@@ -36,8 +36,8 @@
   overflow: hidden;
 }
 
-/* --- Logo swap (full wordmark vs icon) --- */
-.sidebar-logo-icon { display: none; }
+/* --- Logo swap (full wordmark vs collapsed initial) --- */
+.sidebar-logo-icon { display: none; font-size: 18px; }
 .sidebar-logo-full { display: block; }
 
 /* --- Sidebar Collapsed (icon rail) --- */
