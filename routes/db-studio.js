@@ -486,11 +486,12 @@ module.exports = function (app, ctx) {
 
     const containerName = "bulwark-migration-test-" + Date.now();
     const containerPort = 54320 + Math.floor(Math.random() * 100);
+    const testPass = require("crypto").randomBytes(8).toString("hex");
 
     try {
       // 1. Start container
       const startResult = await execCommand(
-        `docker run -d --name ${containerName} -p ${containerPort}:5432 -e POSTGRES_PASSWORD=test -e POSTGRES_DB=testdb postgres:17`,
+        `docker run -d --name ${containerName} -p ${containerPort}:5432 -e POSTGRES_PASSWORD=${testPass} -e POSTGRES_DB=testdb postgres:17`,
         { timeout: 60000 }
       );
       if (startResult.code !== 0) throw new Error("Failed to start container: " + startResult.stderr);

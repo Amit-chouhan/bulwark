@@ -46,4 +46,4 @@ jobs:
         env:
           MONITOR_PORT: 3001
           MONITOR_USER: ci
-          MONITOR_PASS: ci-test-pass
+          MONITOR_PASS: ${{ secrets.MONITOR_PASS_CI || 'ci-test-pass' }}
