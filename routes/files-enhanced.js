@@ -6,7 +6,7 @@ const path = require('path');
 const { askAI } = require('../lib/ai');
 
 module.exports = function (app, ctx) {
-  const { requireAdmin, requireRole, execCommand, REPO_DIR } = ctx;
+  const { requireAdmin, requireRole, execCommand, execFileCommand, REPO_DIR } = ctx;
   const REPO_ROOT = path.resolve(REPO_DIR);
 
   function isWithinRepo(resolved) {
@@ -23,15 +23,16 @@ module.exports = function (app, ctx) {
 
       let results = [];
       if (mode === 'content') {
-        const r = await execCommand(`git grep -n -I --max-count=5 "${q.replace(/"/g, '\\"')}" -- ":(exclude).git"`, { cwd: REPO_DIR, timeout: 10000 });
+        const r = await execFileCommand('git', ['grep', '-n', '-I', '--max-count=5', '-e', q], { cwd: REPO_DIR, timeout: 10000 });
         results = r.stdout.trim().split('\n').filter(Boolean).slice(0, 50).map(line => {
           const idx = line.indexOf(':');
           const idx2 = line.indexOf(':', idx + 1);
           return { file: line.slice(0, idx), line: parseInt(line.slice(idx + 1, idx2)) || 0, match: line.slice(idx2 + 1).trim() };
         });
       } else {
-        const r = await execCommand(`git ls-files | grep -i "${q.replace(/"/g, '\\"')}"`, { cwd: REPO_DIR, timeout: 5000 });
-        results = r.stdout.trim().split('\n').filter(Boolean).slice(0, 50).map(f => ({ file: f, line: 0, match: '' }));
+        const r = await execFileCommand('git', ['ls-files'], { cwd: REPO_DIR, timeout: 5000 });
+        const lower = q.toLowerCase();
+        results = r.stdout.trim().split('\n').filter(Boolean).filter(f => f.toLowerCase().includes(lower)).slice(0, 50).map(f => ({ file: f, line: 0, match: '' }));
       }
       res.json({ results });
     } catch (e) { res.json({ results: [], error: e.message }); }
@@ -83,8 +84,8 @@ module.exports = function (app, ctx) {
       if (!filePath) return res.json({ error: 'path required' });
 
       const [log, blame] = await Promise.all([
-        execCommand(`git log --format="%H|||%an|||%aI|||%s" -5 -- "${filePath.replace(/"/g, '\\"')}"`, { cwd: REPO_DIR, timeout: 5000 }),
-        execCommand(`git log --format="%an" -1 -- "${filePath.replace(/"/g, '\\"')}"`, { cwd: REPO_DIR, timeout: 3000 }),
+        execFileCommand('git', ['log', '--format=%H|||%an|||%aI|||%s', '-5', '--', filePath], { cwd: REPO_DIR, timeout: 5000 }),
+        execFileCommand('git', ['log', '--format=%an', '-1', '--', filePath], { cwd: REPO_DIR, timeout: 3000 }),
       ]);
 
       const commits = log.stdout.trim().split('\n').filter(Boolean).map(line => {

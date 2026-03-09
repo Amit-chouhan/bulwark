@@ -14,7 +14,7 @@ npm install
 
 # Create environment file
 cp .env.example .env
-# Edit .env with your DATABASE_URL, MONITOR_USER, MONITOR_PASS
+# Edit .env with your DATABASE_URL, MONITOR_USER, MONITOR_PASS, and ENCRYPTION_KEY
 
 # Start the server
 npm start

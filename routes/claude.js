@@ -31,7 +31,7 @@ module.exports = function (app, ctx) {
     if (activeClaudeProc) { io.emit("claude_output", "\r\n[ERROR] AI already running.\r\n"); return; }
     const { cmd, args } = getAICommand(provider, prompt);
     io.emit("claude_output", `\r\n[STARTING] ${cmd} "${prompt.substring(0, 80)}..."\r\n\r\n`);
-    const child = spawn(cmd, args, { cwd: REPO_DIR, env: { ...process.env }, shell: true });
+    const child = spawn(cmd, args, { cwd: REPO_DIR, env: { ...process.env }, shell: false });
     activeClaudeProc = child;
     let output = "";
     child.stdout.on("data", (d) => { const t = d.toString(); output += t; io.emit("claude_output", t); });
@@ -70,7 +70,7 @@ module.exports = function (app, ctx) {
       const cleanEnv = { ...process.env };
       delete cleanEnv.CLAUDECODE;
       const result = await new Promise((resolve, reject) => {
-        const child = spawn(cmd, provider === "codex-cli" ? [] : ["--print"], { stdio: ["pipe", "pipe", "pipe"], shell: true, timeout: 30000, env: cleanEnv });
+        const child = spawn(cmd, provider === "codex-cli" ? [] : ["--print"], { stdio: ["pipe", "pipe", "pipe"], shell: false, timeout: 30000, env: cleanEnv });
         let stdout = "", stderr = "";
         child.stdout.on("data", d => { stdout += d; });
         child.stderr.on("data", d => { stderr += d; });

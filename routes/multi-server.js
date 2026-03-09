@@ -1,8 +1,10 @@
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const { buildHealthUrl, normalizeRemoteOrigin } = require("../lib/remote-targets");
 
 const AGENTS_FILE = path.join(__dirname, "..", "data", "agents.json");
+const MASK = "****";
 
 function loadAgents() {
   try { if (fs.existsSync(AGENTS_FILE)) return JSON.parse(fs.readFileSync(AGENTS_FILE, "utf8")); } catch {}
@@ -15,19 +17,61 @@ function saveAgents(data) {
 }
 
 module.exports = function (app, ctx) {
+  function allowPrivateTargets() {
+    return String(process.env.BULWARK_ALLOW_PRIVATE_TARGETS || "").toLowerCase() === "true";
+  }
+
+  function normalizeAgentHost(host) {
+    return normalizeRemoteOrigin(host, { allowPrivate: allowPrivateTargets() });
+  }
+
+  function maskAgent(agent) {
+    return { ...agent, authKey: MASK + (agent.authKey || "").slice(-4) };
+  }
+
+  async function fetchAgentHealth(agent, timeoutMs) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const headers = { Accept: "application/json" };
+      if (agent.authKey) headers.Authorization = `Bearer ${agent.authKey}`;
+      return await fetch(buildHealthUrl(normalizeAgentHost(agent.host)), {
+        signal: controller.signal,
+        headers,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   app.get("/api/multi-server/agents", ctx.requireAdmin, (req, res) => {
     const data = loadAgents();
-    res.json({ agents: data.agents.map(a => ({ ...a, authKey: "••••" + (a.authKey || "").slice(-4) })) });
+    res.json({ agents: data.agents.map(maskAgent) });
   });
 
   app.post("/api/multi-server/agents", ctx.requireAdmin, (req, res) => {
     const { name, host, authKey } = req.body;
     if (!name || !host) return res.status(400).json({ error: "name and host required" });
+
+    let normalizedHost;
+    try {
+      normalizedHost = normalizeAgentHost(host);
+    } catch (e) {
+      return res.status(400).json({ error: e.message });
+    }
+
     const data = loadAgents();
-    const agent = { id: crypto.randomUUID(), name, host, authKey: authKey || "", status: "unknown", created: new Date().toISOString() };
+    const agent = {
+      id: crypto.randomUUID(),
+      name: String(name).trim().slice(0, 80),
+      host: normalizedHost,
+      authKey: authKey ? String(authKey).trim().slice(0, 256) : "",
+      status: "unknown",
+      created: new Date().toISOString(),
+    };
     data.agents.push(agent);
     saveAgents(data);
-    res.json({ success: true, agent: { ...agent, authKey: "••••" } });
+    res.json({ success: true, agent: maskAgent(agent) });
   });
 
   app.delete("/api/multi-server/agents/:id", ctx.requireAdmin, (req, res) => {
@@ -43,11 +87,9 @@ module.exports = function (app, ctx) {
     if (!agent) return res.status(404).json({ error: "Agent not found" });
     try {
       const start = Date.now();
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
-      const r = await fetch(`${agent.host}/api/health`, { signal: controller.signal });
-      clearTimeout(timeout);
+      const r = await fetchAgentHealth(agent, 8000);
       const body = await r.json();
+      agent.host = normalizeAgentHost(agent.host);
       agent.status = r.ok ? "healthy" : "unhealthy";
       agent.lastCheck = new Date().toISOString();
       agent.latency = Date.now() - start;
@@ -66,14 +108,16 @@ module.exports = function (app, ctx) {
     const results = [];
     for (const agent of data.agents) {
       try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 5000);
         const start = Date.now();
-        const r = await fetch(`${agent.host}/api/health`, { signal: controller.signal });
-        clearTimeout(timeout);
-        results.push({ ...agent, authKey: undefined, status: r.ok ? "healthy" : "unhealthy", latency: Date.now() - start });
-      } catch {
-        results.push({ ...agent, authKey: undefined, status: "unreachable", latency: -1 });
+        const r = await fetchAgentHealth(agent, 5000);
+        results.push({
+          ...agent,
+          authKey: undefined,
+          status: r.ok ? "healthy" : "unhealthy",
+          latency: Date.now() - start,
+        });
+      } catch (e) {
+        results.push({ ...agent, authKey: undefined, status: "unreachable", latency: -1, error: e.message });
       }
     }
     res.json({ agents: results });

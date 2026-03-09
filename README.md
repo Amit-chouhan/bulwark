@@ -47,7 +47,7 @@ Bulwark is an AI-powered, self-hosted server management platform that replaces y
 git clone https://github.com/bulwark-studio/bulwark.git
 cd bulwark
 npm install
-MONITOR_USER=admin MONITOR_PASS=changeme npm start
+MONITOR_USER=admin MONITOR_PASS='<long-random-password>' npm start
 # Open http://localhost:3001
 ```
 
@@ -57,7 +57,7 @@ MONITOR_USER=admin MONITOR_PASS=changeme npm start
 docker build -t bulwark .
 docker run -d -p 3001:3001 \
   -e MONITOR_USER=admin \
-  -e MONITOR_PASS=changeme \
+  -e MONITOR_PASS='<long-random-password>' \
   -e DATABASE_URL=postgresql://user:pass@host:5432/db \
   bulwark
 ```
@@ -129,6 +129,9 @@ Configure in **Settings > AI Provider**. Bulwark auto-detects installed CLIs.
 | `MONITOR_PASS` | — | Default admin password (required on first run) |
 | `DATABASE_URL` | — | PostgreSQL connection string |
 | `VPS_DATABASE_URL` | — | Secondary DB connection (optional) |
+| `ENCRYPTION_KEY` | auto-generated local key | Encrypts stored env vars and can be reused for secret storage |
+| `VAULT_KEY` | auto-generated local key | Optional dedicated key for the credential vault |
+| `BULWARK_ALLOW_PRIVATE_TARGETS` | `false` | Allow private/loopback multi-server targets for trusted internal deployments |
 | `REPO_DIR` | cwd | Repository root for Git/Deploy operations |
 
 Create a `.env` file in the project root or set environment variables directly.

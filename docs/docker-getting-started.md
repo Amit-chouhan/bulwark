@@ -117,8 +117,8 @@ services:
       - "3001:3001"
     environment:
       - MONITOR_PORT=3001
-      - MONITOR_USER=${MONITOR_USER:-admin}
-      - MONITOR_PASS=${MONITOR_PASS:-admin}
+      - MONITOR_USER=${MONITOR_USER:?set MONITOR_USER}
+      - MONITOR_PASS=${MONITOR_PASS:?set MONITOR_PASS}
       - DATABASE_URL=postgresql://bulwark:bulwark@postgres:5432/bulwark
       - NODE_ENV=production
       - DOCKER_HOST=unix:///var/run/docker.sock
@@ -280,6 +280,7 @@ Files in `/docker-entrypoint-initdb.d/` run alphabetically on first volume creat
 | `MONITOR_PASS` | — | Default admin password (first run) |
 | `DATABASE_URL` | — | Bulwark's own PostgreSQL connection |
 | `VPS_DATABASE_URL` | — | Secondary DB connection (optional) |
+| `ENCRYPTION_KEY` | auto-generated local key | Encrypts stored env vars and can be reused for secret storage |
 | `ANTHROPIC_API_KEY` | — | Claude API key (optional) |
 | `OPENAI_API_KEY` | — | OpenAI API key (optional) |
 | `DOCKER_HOST` | — | Docker socket path |

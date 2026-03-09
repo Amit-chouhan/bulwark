@@ -3,6 +3,8 @@ const path = require("path");
 const { execCommand } = require("../lib/exec");
 const { getProjectPool, readProjects } = require("../lib/db");
 const { askAI, askAIJSON, getAICommand } = require("../lib/ai");
+const { getRoleLevel } = require("../lib/rbac");
+const { buildReadOnlySql, classifySql, runReadOnlyQuery } = require("../lib/sql-safety");
 
 const DATA_DIR = path.join(__dirname, "..", "data");
 const HISTORY_FILE = path.join(DATA_DIR, "query-history.json");
@@ -180,20 +182,26 @@ module.exports = function (app, ctx) {
     const { sql } = req.body;
     if (!sql?.trim()) return res.status(400).json({ error: "SQL required" });
 
-    const normalized = sql.trim().toUpperCase();
-    const isDDL = /^(DROP|TRUNCATE|ALTER|CREATE)\s/i.test(sql.trim());
-    const isDML = /^(INSERT|UPDATE|DELETE)\s/i.test(sql.trim());
+    const userLevel = getRoleLevel(req.user?.role);
+    const adminLevel = getRoleLevel("admin");
+    const classification = classifySql(sql);
+    const isDDL = classification.isDDL;
+    const isDML = classification.isDML;
 
     if (isDDL) {
       // DDL requires admin role
-      const userLevel = require('../lib/rbac').getRoleLevel(req.user?.role);
       if (userLevel < 3) return res.status(403).json({ error: "DDL requires admin role", type: "ddl_blocked" });
       if (req.query.allow_ddl !== "true") return res.status(403).json({ error: "DDL requires ?allow_ddl=true confirmation", type: "ddl_blocked" });
+    }
+    if (userLevel < adminLevel && isDML) {
+      return res.status(403).json({ error: "Write queries require admin role", type: "write_blocked" });
     }
 
     const start = Date.now();
     try {
-      const result = await p.query(sql);
+      const result = userLevel < adminLevel
+        ? await runReadOnlyQuery(p, buildReadOnlySql(sql, req.query.limit))
+        : await p.query(sql);
       const duration = Date.now() - start;
       const rows = result.rows || [];
       const rowCount = result.rowCount;
@@ -205,7 +213,7 @@ module.exports = function (app, ctx) {
         duration,
         rows: rows.length,
         rowCount,
-        type: isDDL ? "DDL" : isDML ? "DML" : "SELECT",
+          type: userLevel < adminLevel ? "SELECT" : isDDL ? "DDL" : isDML ? "DML" : "SELECT",
         ts: new Date().toISOString(),
         user: req.user?.username || "admin",
         pool: req.query.pool === "vps" ? "vps" : "dev",
@@ -218,9 +226,9 @@ module.exports = function (app, ctx) {
         rowCount,
         fields: result.fields?.map(f => ({ name: f.name, dataTypeID: f.dataTypeID })) || [],
         duration,
-        type: isDDL ? "DDL" : isDML ? "DML" : "SELECT",
-        truncated: rows.length > 1000,
-      });
+          type: userLevel < adminLevel ? "SELECT" : isDDL ? "DDL" : isDML ? "DML" : "SELECT",
+          truncated: rows.length > 1000,
+        });
     } catch (e) {
       // Log failed query too
       const history = readJSON(HISTORY_FILE, []);
@@ -465,7 +473,7 @@ module.exports = function (app, ctx) {
   });
 
   // Docker test-run a migration
-  app.post("/api/db/migrations/test", requireRole('editor'), async (req, res) => {
+  app.post("/api/db/migrations/test", requireAdmin, async (req, res) => {
     const { name, sql: rawSql } = req.body;
     let migrationSql = rawSql;
 
@@ -909,7 +917,7 @@ module.exports = function (app, ctx) {
     fs.writeFileSync(filepath, sql, 'utf8');
   }
 
-  app.post("/api/db/backup", requireRole('editor'), async (req, res) => {
+  app.post("/api/db/backup", requireAdmin, async (req, res) => {
     const timestamp = new Date().toISOString().replace(/[:.]/g, "").replace("T", "_").substring(0, 15);
     const filename = `backup_${timestamp}.sql`;
     const filepath = path.join(BACKUPS_DIR, filename);

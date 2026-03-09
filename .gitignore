@@ -18,6 +18,9 @@ credentials.json
 tokens.json
 
 # ── Runtime data (user-specific, never commit) ───────────────────────
+data/*.json
+data/.vault-key
+data/.envvars-key
 data/credentials.json
 data/credentials-vault.json
 data/audit-log.json
@@ -31,6 +34,7 @@ data/.git-ssh-key-*
 data/users.json
 data/sessions.json
 data/uptime.json
+!data/.gitkeep
 cookies.txt
 
 # ── Personal notes & local overrides ─────────────────────────────────

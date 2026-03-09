@@ -46,8 +46,9 @@ cd bulwark
 npm install
 cat > .env <<EOF
 MONITOR_USER=admin
-MONITOR_PASS=admin
+MONITOR_PASS=replace-with-a-long-random-password
 DATABASE_URL=postgresql://bulwark:bulwark@localhost:5432/bulwark
+ENCRYPTION_KEY=replace-with-a-long-random-secret
 EOF
 npm start
 ```
@@ -58,19 +59,19 @@ npm start
 git clone https://github.com/bulwark-studio/bulwark.git
 cd bulwark
 npm install
-MONITOR_USER=admin MONITOR_PASS=admin npm start
+MONITOR_USER=admin MONITOR_PASS=replace-with-a-long-random-password ENCRYPTION_KEY=replace-with-a-long-random-secret npm start
 ```
 
 Requires: Node.js 18+. PostgreSQL, Docker, and AI CLIs are optional.
 
 ## 2. First Login
 
-Default credentials:
+Login credentials are the values you set in `.env` or your startup command:
 
-| Field    | Value   |
-|----------|---------|
-| Username | `admin` |
-| Password | `admin` |
+| Field    | Value |
+|----------|-------|
+| Username | `MONITOR_USER` |
+| Password | `MONITOR_PASS` |
 
 ### Secure Your Account
 
@@ -79,9 +80,9 @@ After first login, go to **Settings** (bottom of the sidebar) and do these immed
 1. **Change your password** — Settings > My Account > Change Password. Pick something strong (8+ characters).
 2. **Change your username** — Settings > My Account. Replace "admin" with your name or email.
 3. **Enable 2FA** — Settings > Two-Factor Authentication > Enable 2FA. Scan the QR code with an authenticator app (Google Authenticator, Authy, 1Password, etc.). You'll need the 6-digit code on every login after this.
-4. **Add additional users** (optional) — Settings > User Management > + Add User. Assign roles: **admin** (full access), **editor** (can modify but not delete), **viewer** (read-only).
+4. **Add additional users** (optional) — Settings > User Management > + Add User. Assign roles: **admin** (full access), **editor** (app-level changes and AI helpers, but no secrets/shell/destructive ops), **viewer** (read-only).
 
-> **Warning:** Do NOT skip changing the default password. Anyone who can reach port 3001 can log in with `admin/admin`.
+> **Warning:** Do NOT use weak bootstrap credentials. Set a long random `MONITOR_PASS` before the first public-facing start.
 
 ## 3. Setting Up AI (Claude & Codex)
 
@@ -1018,7 +1019,7 @@ A: The Docker image runs as the `bulwark` user (not root) to support this. If yo
 A: The PTY session timed out or crashed. Click the Shell tab or press `Ctrl + Backtick` to reconnect.
 
 **Q: How secure is the Vault?**
-A: Credentials are encrypted with AES-256-GCM using a server-side key. They are stored in `data/credentials.json` and never transmitted in plaintext. The encryption key is derived from `ENCRYPTION_KEY` in your `.env` file (auto-generated on first run if not set).
+A: Credentials are encrypted with AES-256-GCM using a server-side key. They are stored in `data/credentials-vault.json` and never transmitted in plaintext. Bulwark uses `VAULT_KEY` when set, otherwise it creates a local random key file on first use.
 
 **Q: Can I SSH directly from the Vault?**
 A: Yes. Save an SSH Key credential with the host, port, username, and private key. Click the play button next to it to open an SSH session in the Shell tab.
@@ -1244,7 +1245,7 @@ View, create, edit, and delete environment variables with a searchable GUI and e
 A: Yes. Variables managed through Bulwark are stored in `data/envvars.json` and persist across server restarts. System environment variables (from the OS) are shown as read-only.
 
 **Q: Can I add sensitive values?**
-A: Yes, but consider using the **Credential Vault** (Terminal > Vault tab) for sensitive data like API keys and passwords — it uses AES-256-GCM encryption. Env variables are stored in plaintext JSON.
+A: Yes. Bulwark encrypts managed env vars at rest with AES-256-GCM. For credentials you want to keep separate from application config, the **Credential Vault** is still the better place.
 
 **Q: Can I import from a .env file?**
 A: Yes. Click **Import** and paste your `.env` file contents or select a file. Each `KEY=VALUE` line becomes a variable.
@@ -1581,6 +1582,9 @@ A: It shows as "unreachable" with an orange indicator and its metrics display "N
 **Q: Can I compare metrics across servers?**
 A: Yes. The comparison grid shows CPU, memory, and disk for all servers in a single table. This makes it easy to spot which server is under load or running low on resources.
 
+**Q: Why does Bulwark reject a localhost or private network target?**
+A: For safety, custom multi-server targets only accept public `http`/`https` origins by default. If you intentionally want to monitor private IPs or loopback addresses inside a trusted network, set `BULWARK_ALLOW_PRIVATE_TARGETS=true` before starting Bulwark.
+
 **Q: How often does it refresh?**
 A: Server health checks run every 30 seconds via WebSocket. You can also click **Refresh** to force an immediate check.
 
@@ -1663,7 +1667,7 @@ A: Go to Settings > AI Provider. Choose between:
 **Q: Can I add more users?**
 A: Yes (admin only). Go to Settings > User Management > **+ Add User**. Each user gets a role:
 - **Admin** — full access to everything including Settings and User Management
-- **Editor** — can modify data (create tickets, run queries, deploy) but can't manage users or settings
+- **Editor** — can make app-level changes and use AI helpers, but can't manage users, secrets, shell-level automation, or destructive operations
 - **Viewer** — read-only access to all views
 
 **Q: How do I set up email notifications?**
@@ -1956,7 +1960,7 @@ A: Yes. Each user gets their own session. Real-time updates (tickets, metrics) s
 A: Check the browser console (`F12`) for errors. Common causes: (1) server isn't running (`npm start`), (2) wrong port (default 3001), (3) ad blocker blocking WebSocket connections.
 
 **Q: I forgot my password.**
-A: Delete `data/users.json` and restart Bulwark. It will recreate the default admin/admin account. Then change the password immediately.
+A: Stop Bulwark, delete `users.json`, make sure `MONITOR_USER` and `MONITOR_PASS` are set to new values, then restart. Bulwark will recreate the admin account from those environment variables.
 
 **Q: How do I check if Bulwark is running?**
 A: Open `http://localhost:3001/api/system` in your browser or run `curl http://localhost:3001/api/system`. If you get a JSON response, the server is running.

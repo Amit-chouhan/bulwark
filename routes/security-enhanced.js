@@ -80,9 +80,9 @@ module.exports = function (app, ctx) {
       const usersFile = path.join(__dirname, '..', 'users.json');
       try {
         const users = JSON.parse(fs.readFileSync(usersFile, 'utf8'));
-        const hasDefault = users.some(u => u.user === 'admin' && !u.totpSecret);
-        checks.push({ name: 'Auth Security', status: hasDefault ? 'warn' : 'pass', detail: hasDefault ? 'Default admin without 2FA' : '2FA enabled for admin' });
-        if (hasDefault) score -= 10;
+        const hasAdminWithout2FA = users.some(u => u.role === 'admin' && !u.totp_enabled);
+        checks.push({ name: 'Auth Security', status: hasAdminWithout2FA ? 'warn' : 'pass', detail: hasAdminWithout2FA ? 'At least one admin account has no 2FA' : '2FA enabled for all admin accounts' });
+        if (hasAdminWithout2FA) score -= 10;
       } catch { checks.push({ name: 'Auth Security', status: 'info', detail: 'Could not check' }); }
 
       // Check 8: Open ports (if nmap available)

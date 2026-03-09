@@ -1,41 +1,4 @@
-const crypto = require("crypto");
-const fs = require("fs");
-const path = require("path");
-
-const DATA_FILE = path.join(__dirname, "..", "data", "envvars.json");
-
-function getKey() {
-  const raw = process.env.ENCRYPTION_KEY || process.env.MONITOR_PASS || "dev-monitor-default-key";
-  return crypto.createHash("sha256").update(raw).digest();
-}
-
-function encrypt(text) {
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", getKey(), iv);
-  let enc = cipher.update(text, "utf8", "hex");
-  enc += cipher.final("hex");
-  const tag = cipher.getAuthTag().toString("hex");
-  return iv.toString("hex") + ":" + tag + ":" + enc;
-}
-
-function decrypt(data) {
-  const [ivHex, tagHex, enc] = data.split(":");
-  const decipher = crypto.createDecipheriv("aes-256-gcm", getKey(), Buffer.from(ivHex, "hex"));
-  decipher.setAuthTag(Buffer.from(tagHex, "hex"));
-  let dec = decipher.update(enc, "hex", "utf8");
-  dec += decipher.final("utf8");
-  return dec;
-}
-
-function loadStore() {
-  try { if (fs.existsSync(DATA_FILE)) return JSON.parse(fs.readFileSync(DATA_FILE, "utf8")); } catch {}
-  return { apps: {} };
-}
-
-function saveStore(store) {
-  fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
-  fs.writeFileSync(DATA_FILE, JSON.stringify(store, null, 2), "utf8");
-}
+const { loadStore, saveStore, encrypt, decrypt, ensureApp } = require("../lib/envvars-store");
 
 module.exports = function (app, ctx) {
   app.get("/api/envvars", ctx.requireAdmin, (req, res) => {
@@ -61,10 +24,10 @@ module.exports = function (app, ctx) {
     const { key, value, description } = req.body;
     if (!key || value === undefined) return res.status(400).json({ error: "key and value required" });
     const store = loadStore();
-    if (!store.apps[req.params.app]) store.apps[req.params.app] = { vars: {}, history: [] };
-    store.apps[req.params.app].vars[key] = { value: encrypt(value), description: description || "", updated: new Date().toISOString() };
-    store.apps[req.params.app].history.push({ action: "set", key, by: req.user.user, ts: new Date().toISOString() });
-    if (store.apps[req.params.app].history.length > 50) store.apps[req.params.app].history = store.apps[req.params.app].history.slice(-50);
+    const appData = ensureApp(store, req.params.app);
+    appData.vars[key] = { value: encrypt(value), description: description || "", updated: new Date().toISOString() };
+    appData.history.push({ action: "set", key, by: req.user.user, ts: new Date().toISOString() });
+    if (appData.history.length > 50) appData.history = appData.history.slice(-50);
     saveStore(store);
     res.json({ success: true });
   });
@@ -83,7 +46,7 @@ module.exports = function (app, ctx) {
     const { content } = req.body;
     if (!content) return res.status(400).json({ error: "content required" });
     const store = loadStore();
-    if (!store.apps[req.params.app]) store.apps[req.params.app] = { vars: {}, history: [] };
+    const appData = ensureApp(store, req.params.app);
     let count = 0;
     for (const line of content.split("\n")) {
       const trimmed = line.trim();
@@ -92,10 +55,10 @@ module.exports = function (app, ctx) {
       if (eq === -1) continue;
       const key = trimmed.substring(0, eq).trim();
       const value = trimmed.substring(eq + 1).trim().replace(/^["']|["']$/g, "");
-      store.apps[req.params.app].vars[key] = { value: encrypt(value), updated: new Date().toISOString() };
+      appData.vars[key] = { value: encrypt(value), updated: new Date().toISOString(), description: "" };
       count++;
     }
-    store.apps[req.params.app].history.push({ action: "bulk_import", count, by: req.user.user, ts: new Date().toISOString() });
+    appData.history.push({ action: "bulk_import", count, by: req.user.user, ts: new Date().toISOString() });
     saveStore(store);
     res.json({ success: true, imported: count });
   });

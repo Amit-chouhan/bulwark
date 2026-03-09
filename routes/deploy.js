@@ -25,7 +25,7 @@ module.exports = function (app, ctx) {
     res.json({ targets: readJSON(TARGETS_PATH, []) });
   });
 
-  app.post('/api/deploy/targets', requireRole('editor'), (req, res) => {
+  app.post('/api/deploy/targets', requireAdmin, (req, res) => {
     const targets = readJSON(TARGETS_PATH, []);
     const { id, name, host, method, branch, credentialId, buildCmd, deployCmd, verifyUrl, preCmd, postCmd } = req.body;
     if (!name || !method) return res.status(400).json({ error: 'name and method required' });
@@ -97,7 +97,7 @@ module.exports = function (app, ctx) {
   });
 
   // ── Execute Deploy ──
-  app.post('/api/deploy/execute/:id', requireRole('editor'), async (req, res) => {
+  app.post('/api/deploy/execute/:id', requireAdmin, async (req, res) => {
     const targets = readJSON(TARGETS_PATH, []);
     const target = targets.find(t => t.id === req.params.id);
     if (!target) return res.status(404).json({ error: 'Target not found' });
@@ -223,7 +223,7 @@ module.exports = function (app, ctx) {
     res.json({ profiles });
   });
 
-  app.post('/api/deploy/profiles', requireRole('editor'), (req, res) => {
+  app.post('/api/deploy/profiles', requireAdmin, (req, res) => {
     const profiles = readJSON(PROFILES_PATH, []);
     const { id, name, buildCmd, deployCmd, icon } = req.body;
     const profile = { id: id || require('crypto').randomUUID(), name, buildCmd, deployCmd, icon: icon || 'custom' };

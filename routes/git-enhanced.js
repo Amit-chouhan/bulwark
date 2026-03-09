@@ -4,7 +4,7 @@
 const { askAI } = require('../lib/ai');
 
 module.exports = function (app, ctx) {
-  const { requireAdmin, requireRole, execCommand, REPO_DIR } = ctx;
+  const { requireAdmin, requireRole, execCommand, execFileCommand, REPO_DIR } = ctx;
   // Dynamic cwd: use active git project if set, else fall back to static REPO_DIR
   function getCwd() { return (ctx.getGitCwd && ctx.getGitCwd()) || REPO_DIR; }
   function getEnv() { return (ctx.getGitEnv && ctx.getGitEnv()) || process.env; }
@@ -102,8 +102,8 @@ module.exports = function (app, ctx) {
 
   app.post('/api/git/stash', requireRole('editor'), async (req, res) => {
     try {
-      const msg = (req.body.message || 'Quick stash').replace(/"/g, '\\"');
-      const r = await execCommand(`git stash push -m "${msg}"`, { cwd: getCwd(), timeout: 10000 });
+      const msg = String(req.body.message || 'Quick stash').slice(0, 200);
+      const r = await execFileCommand('git', ['stash', 'push', '-m', msg], { cwd: getCwd(), timeout: 10000, env: getEnv() });
       res.json({ success: true, output: r.stdout });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
@@ -120,9 +120,8 @@ module.exports = function (app, ctx) {
     try {
       const { message, addAll } = req.body;
       if (!message) return res.status(400).json({ error: 'Commit message required' });
-      if (addAll) await execCommand('git add -A', { cwd: getCwd() });
-      const safeMsg = message.replace(/"/g, '\\"').replace(/\$/g, '\\$');
-      const r = await execCommand(`git commit -m "${safeMsg}"`, { cwd: getCwd(), timeout: 15000 });
+      if (addAll) await execFileCommand('git', ['add', '-A'], { cwd: getCwd(), env: getEnv() });
+      const r = await execFileCommand('git', ['commit', '-m', String(message)], { cwd: getCwd(), timeout: 15000, env: getEnv() });
       res.json({ success: true, output: r.stdout });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
@@ -302,7 +301,7 @@ Return ONLY the JSON object, no markdown.`;
       let conflictContent = '';
       for (const f of files.slice(0, 5)) {
         try {
-          const content = await execCommand(`git diff ${f.replace(/"/g, '\\"')}`, { cwd: getCwd(), timeout: 5000 });
+          const content = await execFileCommand('git', ['diff', '--', f], { cwd: getCwd(), timeout: 5000, env: getEnv() });
           conflictContent += `\n--- ${f} ---\n${content.stdout.substring(0, 2000)}\n`;
         } catch {}
       }

@@ -69,7 +69,7 @@ function getAuthRemoteUrl(project) {
 }
 
 module.exports = function (app, ctx) {
-  const { requireAdmin, requireRole, execCommand } = ctx;
+  const { requireAdmin, execCommand, execFileCommand } = ctx;
 
   // Expose getActiveProject and getRepoCwd on ctx for git-enhanced.js
   ctx.getActiveGitProject = getActiveProject;
@@ -94,7 +94,7 @@ module.exports = function (app, ctx) {
   });
 
   // ── Add project ──
-  app.post('/api/git/projects', requireRole('editor'), async (req, res) => {
+  app.post('/api/git/projects', requireAdmin, async (req, res) => {
     const { name, localPath, remoteUrl, credentialId, description } = req.body;
     if (!name) return res.status(400).json({ error: 'Name required' });
     if (!localPath && !remoteUrl) return res.status(400).json({ error: 'Local path or remote URL required' });
@@ -117,8 +117,7 @@ module.exports = function (app, ctx) {
       try {
         const env = getGitEnv(project);
         const authUrl = getAuthRemoteUrl(project) || remoteUrl;
-        const safeUrl = authUrl.replace(/"/g, '');
-        await execCommand(`git clone "${safeUrl}" "${cloneDir}"`, { cwd: __dirname, timeout: 120000, env });
+        await execFileCommand('git', ['clone', authUrl, cloneDir], { cwd: __dirname, timeout: 120000, env });
         project.localPath = cloneDir;
       } catch (e) {
         return res.status(500).json({ error: 'Clone failed: ' + (e.message || e.stderr || 'Unknown error') });
@@ -133,7 +132,7 @@ module.exports = function (app, ctx) {
   });
 
   // ── Update project ──
-  app.put('/api/git/projects/:id', requireRole('editor'), (req, res) => {
+  app.put('/api/git/projects/:id', requireAdmin, (req, res) => {
     const data = loadProjects();
     const idx = data.projects.findIndex(p => p.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'Project not found' });
@@ -159,7 +158,7 @@ module.exports = function (app, ctx) {
   });
 
   // ── Activate project ──
-  app.post('/api/git/projects/:id/activate', requireRole('editor'), (req, res) => {
+  app.post('/api/git/projects/:id/activate', requireAdmin, (req, res) => {
     const data = loadProjects();
     const project = data.projects.find(p => p.id === req.params.id);
     if (!project) return res.status(404).json({ error: 'Project not found' });
@@ -169,7 +168,7 @@ module.exports = function (app, ctx) {
   });
 
   // ── Test connection (verify repo is accessible) ──
-  app.post('/api/git/projects/test', requireRole('editor'), async (req, res) => {
+  app.post('/api/git/projects/test', requireAdmin, async (req, res) => {
     const { localPath, remoteUrl, credentialId } = req.body;
     try {
       if (localPath) {
@@ -185,9 +184,8 @@ module.exports = function (app, ctx) {
         const tmpProject = { credentialId, remoteUrl };
         const env = getGitEnv(tmpProject);
         const authUrl = getAuthRemoteUrl(tmpProject) || remoteUrl;
-        const safeUrl = authUrl.replace(/"/g, '');
-        const r = await execCommand(`git ls-remote --heads "${safeUrl}" 2>&1 | head -5`, { cwd: __dirname, timeout: 30000, env });
-        if (r.stdout.trim()) return res.json({ success: true, message: 'Remote accessible', refs: r.stdout.trim().split('\n').length + ' refs' });
+        const r = await execFileCommand('git', ['ls-remote', '--heads', authUrl], { cwd: __dirname, timeout: 30000, env });
+        if (r.stdout.trim()) return res.json({ success: true, message: 'Remote accessible', refs: r.stdout.trim().split('\n').slice(0, 5).length + ' refs' });
         return res.json({ success: false, error: r.stderr || 'Could not access remote' });
       }
       res.json({ success: false, error: 'Provide localPath or remoteUrl' });

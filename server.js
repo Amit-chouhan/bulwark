@@ -30,7 +30,7 @@ const { Server: SocketServer } = require("socket.io");
 const { pool, vpsPool, dbQuery, vpsQuery } = require("./lib/db");
 const { ensureDefaultAdmin } = require("./lib/users");
 const { sessions, validateSession, parseCookies, isSocketAdmin, cleanupSessions } = require("./lib/sessions");
-const { execCommand, REPO_DIR } = require("./lib/exec");
+const { execCommand, execFileCommand, REPO_DIR } = require("./lib/exec");
 const { callAdapter } = require("./lib/adapter-client");
 const { getSystemInfo, collectMetrics, getDiskUsage } = require("./lib/metrics-collector");
 const uptimeStore = require("./lib/uptime-store");
@@ -91,7 +91,7 @@ function requireAdmin(req, res, next) {
 // ── Shared context for route modules ─────────────────────────────────────────
 const ctx = {
   pool, vpsPool, dbQuery, vpsQuery, io,
-  execCommand, REPO_DIR, callAdapter,
+  execCommand, execFileCommand, REPO_DIR, callAdapter,
   requireAuth, requireAdmin, requireRole, requireAction,
   // These get populated by route modules:
   getTicketSummary: null,

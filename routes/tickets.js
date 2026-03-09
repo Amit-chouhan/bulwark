@@ -1,5 +1,5 @@
 module.exports = function (app, ctx) {
-  const { dbQuery, vpsQuery, vpsPool, io, execCommand, REPO_DIR, requireRole } = ctx;
+  const { dbQuery, vpsQuery, vpsPool, io, execCommand, execFileCommand, REPO_DIR, requireRole } = ctx;
   const { askAI, askAIJSON } = require('../lib/ai');
 
   async function getTicketSummary() {
@@ -94,8 +94,12 @@ module.exports = function (app, ctx) {
         if (vr.rows[0]?.fix_branch) rows.push(vr.rows[0]);
       }
       if (rows[0]?.fix_branch) {
-        await execCommand(`git -C ${REPO_DIR} push origin ${rows[0].fix_branch}`, { timeout: 30000 });
-        io.emit("claude_output", `\r\n[DEPLOY] Pushed ${rows[0].fix_branch}\r\n`);
+        const branch = String(rows[0].fix_branch).trim();
+        const check = await execFileCommand("git", ["check-ref-format", "--branch", branch], { cwd: REPO_DIR, timeout: 5000 });
+        if (check.code !== 0) throw new Error("Invalid branch name on ticket");
+        const push = await execFileCommand("git", ["push", "origin", branch], { cwd: REPO_DIR, timeout: 30000 });
+        if (push.code !== 0) throw new Error(push.stderr || "Git push failed");
+        io.emit("claude_output", `\r\n[DEPLOY] Pushed ${branch}\r\n`);
       }
       await dbQuery(`INSERT INTO chester_activity (type, title, description, metadata) VALUES ('ticket_approved', $1, $2, $3)`,
         [`Ticket ${id.substring(0, 8)} approved`, `Approved for merge`, JSON.stringify({ ticket_id: id })]);

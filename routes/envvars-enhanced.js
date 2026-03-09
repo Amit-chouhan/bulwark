@@ -1,29 +1,8 @@
 /**
  * EnvVars Enhanced Routes — AI secret detection, .env export, comparison, categories
  */
-const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
 const { askAI } = require('../lib/ai');
-
-const DATA_FILE = path.join(__dirname, '..', 'data', 'envvars.json');
-
-function getKey() {
-  const raw = process.env.ENCRYPTION_KEY || process.env.MONITOR_PASS || 'dev-monitor-default-key';
-  return crypto.createHash('sha256').update(raw).digest();
-}
-function decrypt(data) {
-  const [ivHex, tagHex, enc] = data.split(':');
-  const decipher = crypto.createDecipheriv('aes-256-gcm', getKey(), Buffer.from(ivHex, 'hex'));
-  decipher.setAuthTag(Buffer.from(tagHex, 'hex'));
-  let dec = decipher.update(enc, 'hex', 'utf8');
-  dec += decipher.final('utf8');
-  return dec;
-}
-function loadStore() {
-  try { if (fs.existsSync(DATA_FILE)) return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); } catch {}
-  return { apps: {} };
-}
+const { loadStore, decrypt } = require('../lib/envvars-store');
 
 // Categorize env var by key name
 function categorize(key) {

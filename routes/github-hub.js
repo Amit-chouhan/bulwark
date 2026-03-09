@@ -167,7 +167,7 @@ module.exports = function (app, ctx) {
     res.json({ accounts: hub.accounts.map(a => ({ ...a })) });
   });
 
-  app.post("/api/github-hub/accounts", requireRole("editor"), async (req, res) => {
+  app.post("/api/github-hub/accounts", requireAdmin, async (req, res) => {
     const { name, label, token } = req.body;
     if (!name || !token) return res.status(400).json({ error: "Name and token required" });
 
@@ -206,7 +206,7 @@ module.exports = function (app, ctx) {
     }
   });
 
-  app.put("/api/github-hub/accounts/:id", requireRole("editor"), async (req, res) => {
+  app.put("/api/github-hub/accounts/:id", requireAdmin, async (req, res) => {
     const hub = loadHub();
     const idx = hub.accounts.findIndex(a => a.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: "Account not found" });
@@ -246,7 +246,7 @@ module.exports = function (app, ctx) {
     res.json({ ok: true });
   });
 
-  app.post("/api/github-hub/accounts/:id/validate", requireRole("editor"), async (req, res) => {
+  app.post("/api/github-hub/accounts/:id/validate", requireAdmin, async (req, res) => {
     const hub = loadHub();
     const acct = hub.accounts.find(a => a.id === req.params.id);
     if (!acct) return res.status(404).json({ error: "Account not found" });

@@ -90,7 +90,7 @@ module.exports = function (app, ctx) {
   });
 
   // Create/update job
-  app.post('/api/cron/jobs', requireRole('editor'), (req, res) => {
+  app.post('/api/cron/jobs', requireAdmin, (req, res) => {
     const jobs = readJSON(JOBS_PATH, []);
     const { id, name, schedule, command, description, category, tags } = req.body;
     if (!schedule || !command) return res.status(400).json({ error: 'schedule and command required' });
@@ -117,7 +117,7 @@ module.exports = function (app, ctx) {
   });
 
   // Toggle job
-  app.post('/api/cron/jobs/:id/toggle', requireRole('editor'), (req, res) => {
+  app.post('/api/cron/jobs/:id/toggle', requireAdmin, (req, res) => {
     const jobs = readJSON(JOBS_PATH, []);
     const job = jobs.find(j => j.id === req.params.id);
     if (!job) return res.status(404).json({ error: 'Job not found' });
@@ -128,7 +128,7 @@ module.exports = function (app, ctx) {
   });
 
   // Delete job
-  app.delete('/api/cron/jobs/:id', requireRole('editor'), (req, res) => {
+  app.delete('/api/cron/jobs/:id', requireAdmin, (req, res) => {
     let jobs = readJSON(JOBS_PATH, []);
     const before = jobs.length;
     jobs = jobs.filter(j => j.id !== req.params.id);
@@ -137,7 +137,7 @@ module.exports = function (app, ctx) {
   });
 
   // Run job manually
-  app.post('/api/cron/jobs/:id/run', requireRole('editor'), async (req, res) => {
+  app.post('/api/cron/jobs/:id/run', requireAdmin, async (req, res) => {
     const jobs = readJSON(JOBS_PATH, []);
     const job = jobs.find(j => j.id === req.params.id);
     if (!job) return res.status(404).json({ error: 'Job not found' });

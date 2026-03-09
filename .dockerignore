@@ -4,5 +4,6 @@ ecosystem.config.js
 .git
 *.log
 .env*
+data/
 Dockerfile
 docker-compose*.yml

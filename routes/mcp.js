@@ -14,6 +14,13 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { getRoleLevel } = require('../lib/rbac');
+const { buildReadOnlySql, runReadOnlyQuery } = require('../lib/sql-safety');
+const {
+  loadStore: loadEnvStore,
+  saveStore: saveEnvStore,
+  encrypt: encryptEnvValue,
+  ensureApp: ensureEnvApp,
+} = require('../lib/envvars-store');
 
 module.exports = function (app, ctx) {
 
@@ -274,15 +281,10 @@ module.exports = function (app, ctx) {
       try {
         const denied = requireMcpRole('editor', 'query_database');
         if (denied) return denied;
-        if (!ctx.dbQuery) return { content: [{ type: 'text', text: 'No database connected' }] };
-        const trimmed = sql.trim().toUpperCase();
-        if (!trimmed.startsWith('SELECT') && !trimmed.startsWith('WITH') && !trimmed.startsWith('EXPLAIN')) {
-          return { content: [{ type: 'text', text: 'Only SELECT, WITH, and EXPLAIN queries are allowed via MCP for safety.' }], isError: true };
-        }
-        const cleaned = sql.replace(/;\s*$/, '');
-        const safeSql = /\bLIMIT\s+\d+/i.test(cleaned) ? cleaned : cleaned + ' LIMIT ' + limit;
-        const rows = await ctx.dbQuery(safeSql);
-        return { content: [{ type: 'text', text: JSON.stringify(rows, null, 2) }] };
+        if (!ctx.pool) return { content: [{ type: 'text', text: 'No database connected' }] };
+        const safeSql = buildReadOnlySql(sql, limit);
+        const result = await runReadOnlyQuery(ctx.pool, safeSql);
+        return { content: [{ type: 'text', text: JSON.stringify(result.rows, null, 2) }] };
       } catch (e) {
         return { content: [{ type: 'text', text: 'Query error: ' + e.message }], isError: true };
       }
@@ -464,9 +466,9 @@ module.exports = function (app, ctx) {
           try {
             const usersFile = path.join(__dirname, '..', 'users.json');
             const users = JSON.parse(fs.readFileSync(usersFile, 'utf8'));
-            const hasDefault = users.some(u => u.user === 'admin' && !u.totpSecret);
-            checks.push({ name: 'Auth Security', status: hasDefault ? 'warn' : 'pass', detail: hasDefault ? 'Default admin without 2FA' : '2FA enabled for admin' });
-            if (hasDefault) score -= 10;
+            const hasAdminWithout2FA = users.some(u => u.role === 'admin' && !u.totp_enabled);
+            checks.push({ name: 'Auth Security', status: hasAdminWithout2FA ? 'warn' : 'pass', detail: hasAdminWithout2FA ? 'At least one admin account has no 2FA' : '2FA enabled for all admin accounts' });
+            if (hasAdminWithout2FA) score -= 10;
           } catch { checks.push({ name: 'Auth Security', status: 'info', detail: 'Could not check' }); }
 
           // Check 8: npm audit
@@ -777,19 +779,22 @@ module.exports = function (app, ctx) {
 
     // ── Environment Variables ──
 
-    server.tool('list_env_vars', 'List environment variables with masked values', {},
-      async () => {
+    server.tool('list_env_vars', 'List environment variables with masked values for an app', {
+      app: z.string().default('default').describe('App name, defaults to "default"'),
+    },
+      async ({ app }) => {
         try {
           const denied = requireMcpRole('admin', 'list_env_vars');
           if (denied) return denied;
-          const envPath = path.join(__dirname, '..', 'data', 'envvars.json');
-          if (!fs.existsSync(envPath)) return { content: [{ type: 'text', text: JSON.stringify([], null, 2) }] };
-          const data = JSON.parse(fs.readFileSync(envPath, 'utf8'));
-          const vars = (data.variables || []).map(v => ({
-            key: v.key,
-            value: v.value ? v.value.substring(0, 4) + '****' : '****',
-            encrypted: v.encrypted || false,
-            updatedAt: v.updatedAt || null,
+          const store = loadEnvStore();
+          const appData = store.apps[app];
+          if (!appData) return { content: [{ type: 'text', text: JSON.stringify([], null, 2) }] };
+          const vars = Object.entries(appData.vars || {}).map(([key, entry]) => ({
+            key,
+            value: '********',
+            encrypted: true,
+            updatedAt: entry.updated || null,
+            description: entry.description || '',
           }));
           return { content: [{ type: 'text', text: JSON.stringify(vars, null, 2) }] };
         } catch (e) {
@@ -799,26 +804,26 @@ module.exports = function (app, ctx) {
     );
 
     server.tool('set_env_var', 'Set an environment variable', {
+      app: z.string().default('default').describe('App name, defaults to "default"'),
       key: z.string().describe('Variable name'),
       value: z.string().describe('Variable value'),
-      encrypted: z.boolean().optional().describe('Store as encrypted'),
-    }, async ({ key, value, encrypted }) => {
+      description: z.string().optional().describe('Optional description'),
+    }, async ({ app, key, value, description }) => {
       try {
         const denied = requireMcpRole('editor', 'set_env_var');
         if (denied) return denied;
         if (!key.match(/^[A-Za-z_][A-Za-z0-9_]*$/)) return { content: [{ type: 'text', text: 'Invalid variable name. Use letters, digits, and underscores.' }], isError: true };
-        const envPath = path.join(__dirname, '..', 'data', 'envvars.json');
-        let data = { variables: [] };
-        try { data = JSON.parse(fs.readFileSync(envPath, 'utf8')); } catch {}
-        if (!data.variables) data.variables = [];
-        const idx = data.variables.findIndex(v => v.key === key);
-        const entry = { key, value, encrypted: !!encrypted, updatedAt: new Date().toISOString() };
-        if (idx >= 0) data.variables[idx] = entry;
-        else data.variables.push(entry);
-        const dir = path.dirname(envPath);
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        fs.writeFileSync(envPath, JSON.stringify(data, null, 2));
-        return { content: [{ type: 'text', text: 'Environment variable set: ' + key }] };
+        const store = loadEnvStore();
+        const appData = ensureEnvApp(store, app);
+        appData.vars[key] = {
+          value: encryptEnvValue(value),
+          description: description || '',
+          updated: new Date().toISOString(),
+        };
+        appData.history.push({ action: 'set', key, by: session?.username || session?.user || 'mcp', ts: new Date().toISOString() });
+        if (appData.history.length > 50) appData.history = appData.history.slice(-50);
+        saveEnvStore(store);
+        return { content: [{ type: 'text', text: 'Environment variable set: ' + key + ' (app=' + app + ')' }] };
       } catch (e) {
         return { content: [{ type: 'text', text: 'Error: ' + e.message }], isError: true };
       }

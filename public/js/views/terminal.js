@@ -21,6 +21,10 @@
   var historyIdx = -1;
   var drawerInited = false;
 
+  function hasVaultAccess() {
+    return typeof window.isAdmin === 'function' && window.isAdmin();
+  }
+
   // ── Inject Floating Drawer into DOM (once, persists forever) ──
   function ensureDrawer() {
     if (drawerInited) return;
@@ -40,11 +44,11 @@
             '<div class="cmd-drag" onmousedown="Views.terminal.startResize(event)" title="Drag to resize">' +
               '<span></span><span></span><span></span>' +
             '</div>' +
-            '<div class="cmd-tabs">' +
-              cmdTab('shell', 'M4,4 L8,8 L4,12', 'Shell', true) +
-              cmdTab('bulwark-ai', '', 'Bulwark AI') +
-              cmdTab('vault', '', 'Vault') +
-            '</div>' +
+              '<div class="cmd-tabs">' +
+                cmdTab('shell', 'M4,4 L8,8 L4,12', 'Shell', true) +
+                cmdTab('bulwark-ai', '', 'Bulwark AI') +
+                (hasVaultAccess() ? cmdTab('vault', '', 'Vault') : '') +
+              '</div>' +
           '</div>' +
           '<div class="cmd-topbar-right">' +
             '<div class="cmd-status" id="cmd-status"><span class="cmd-status-dot" id="cmd-status-dot"></span><span id="cmd-status-label" class="cmd-status-label">Disconnected</span></div>' +
@@ -66,16 +70,16 @@
             '<button class="cmd-qbtn" onclick="Views.terminal.qcmd(\'pm2 list\')">pm2</button>' +
           '</div>' +
           '<div class="cmd-quick-right">' +
-            '<button class="cmd-qbtn cmd-qbtn-connect" onclick="Views.terminal.showQuickConnect(this)">' +
+            (hasVaultAccess() ? '<button class="cmd-qbtn cmd-qbtn-connect" onclick="Views.terminal.showQuickConnect(this)">' +
               '<svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="4"/><path d="M6 3v3h3"/></svg> Connect' +
-            '</button>' +
+            '</button>' : '') +
           '</div>' +
         '</div>' +
         // Panel bodies
         '<div class="cmd-body">' +
           '<div class="cmd-panel" id="cmd-panel-shell"><div id="terminal-container" class="cmd-terminal-wrap"></div></div>' +
           '<div class="cmd-panel" id="cmd-panel-bulwark-ai" style="display:none">' + buildBulwarkUI() + '</div>' +
-          '<div class="cmd-panel" id="cmd-panel-vault" style="display:none">' + buildVaultUI() + '</div>' +
+          (hasVaultAccess() ? '<div class="cmd-panel" id="cmd-panel-vault" style="display:none">' + buildVaultUI() + '</div>' : '') +
         '</div>' +
       '</div>';
 
@@ -236,6 +240,7 @@
 
   // ── Tab Switching ──
   Views.terminal.switchTab = function (tab) {
+    if (tab === 'vault' && !hasVaultAccess()) return;
     activeTab = tab;
     document.querySelectorAll('#cmd-drawer .cmd-tab').forEach(function (b) {
       b.classList.toggle('active', b.getAttribute('data-tab') === tab);
@@ -392,6 +397,7 @@
 
   // ── Quick Connect Dropdown ──
   Views.terminal.showQuickConnect = function (btn) {
+    if (!hasVaultAccess()) return;
     // Create a floating dropdown near the button
     var existing = document.getElementById('qc-dropdown');
     if (existing) { existing.remove(); return; }
@@ -423,6 +429,7 @@
   };
 
   Views.terminal.connectTo = function (id) {
+    if (!hasVaultAccess()) return;
     fetch('/api/credentials/' + id + '/inject', { method: 'POST' }).then(function (r) { return r.json(); }).then(function (d) {
       if (d.command) {
         Views.terminal.switchTab('shell');
@@ -469,7 +476,9 @@
 
     // Smart context: load credentials for SSH resolution
     var contextPromise = Promise.all([
-      fetch('/api/credentials').then(function (r) { return r.json(); }).catch(function () { return { credentials: [] }; }),
+      hasVaultAccess()
+        ? fetch('/api/credentials').then(function (r) { return r.json(); }).catch(function () { return { credentials: [] }; })
+        : Promise.resolve({ credentials: [] }),
     ]);
 
     contextPromise.then(function (results) {
@@ -527,6 +536,7 @@
 
   // ── Credential Vault ──
   function loadCredentials() {
+    if (!hasVaultAccess()) return;
     fetch('/api/credentials').then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();

@@ -26,7 +26,10 @@ jobs:
         run: npm ci
 
       - name: Check syntax (all JS files parse)
-        run: node -e "const fs=require('fs'),path=require('path');function check(d){fs.readdirSync(d,{withFileTypes:true}).forEach(e=>{const p=path.join(d,e.name);if(e.isDirectory()&&!['node_modules','landing'].includes(e.name))check(p);else if(e.name.endsWith('.js'))try{require(p)}catch(err){if(err instanceof SyntaxError){console.error('Syntax error:',p,err.message);process.exit(1)}}})};check('./lib')"
+        run: node -e "const { execFileSync, spawnSync } = require('child_process'); const files = execFileSync('git', ['ls-files', '*.js'], { encoding: 'utf8' }).trim().split(/\r?\n/).filter(Boolean); for (const file of files) { const result = spawnSync(process.execPath, ['--check', file], { stdio: 'inherit' }); if (result.status !== 0) process.exit(result.status || 1); } console.log('Checked ' + files.length + ' JS files');"
+
+      - name: Run security regression tests
+        run: npm test
 
       - name: Server starts and responds on /api/health
         run: |
