@@ -648,7 +648,10 @@
           html += '<tr><td>' + esc(img.repo) + '</td><td>' + esc(img.tag) + '</td>' +
             '<td>' + img.sizeFormatted + '</td>' +
             '<td class="text-tertiary">' + (img.created ? new Date(img.created * 1000).toLocaleDateString() : '--') + '</td>' +
-            '<td><button class="btn btn-sm btn-ghost" onclick="Views.docker.removeImage(\'' + esc(img.id) + '\')">Remove</button></td></tr>';
+            '<td style="display:flex;gap:4px;justify-content:flex-end">' +
+              '<button class="btn btn-sm btn-cyan" onclick="Views.docker.inspectLayers(\'' + esc(img.id) + '\')">Inspect Layers</button>' +
+              '<button class="btn btn-sm btn-ghost" onclick="Views.docker.removeImage(\'' + esc(img.id) + '\')">Remove</button>' +
+            '</td></tr>';
         });
         html += '</tbody></table></div>';
       }
@@ -680,6 +683,153 @@
         else Toast.error(d.error || 'Remove failed');
       }).catch(function () { Toast.error('Failed'); });
   };
+
+  // ── Image Layer Inspection (Dive-style) ──
+  Views.docker.inspectLayers = function (id) {
+    var overlay = Modal.open({
+      title: 'Image Layer Inspector',
+      body: '<div style="display:flex;flex-direction:column;align-items:center;padding:32px 0;gap:12px">' +
+        '<div style="width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--cyan);border-radius:50%;animation:spin 0.8s linear infinite"></div>' +
+        '<div style="font-size:13px;color:var(--text-secondary)">Analyzing image layers...</div></div>',
+      size: 'xl',
+    });
+
+    fetch('/api/docker/images/' + id + '/inspect-layers')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.error) { Toast.error(data.error); Modal.close(overlay); return; }
+        var body = overlay.querySelector('.modal-body');
+        if (!body) return;
+        body.innerHTML = buildLayerInspectorHTML(data);
+      })
+      .catch(function () { Toast.error('Layer inspection failed'); Modal.close(overlay); });
+  };
+
+  Views.docker.requestLayerAI = function (imageId) {
+    var aiPanel = document.getElementById('dive-ai-panel');
+    var aiBtn = document.getElementById('dive-ai-btn');
+    if (!aiPanel || !aiBtn) return;
+    aiBtn.disabled = true; aiBtn.textContent = 'Analyzing...';
+    aiPanel.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:12px"><div style="width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--cyan);border-radius:50%;animation:spin 0.8s linear infinite"></div><span class="text-secondary">AI is analyzing this image...</span></div>';
+
+    fetch('/api/docker/images/' + imageId + '/optimize-ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      aiBtn.disabled = false; aiBtn.textContent = 'Get AI Recommendations';
+      aiPanel.innerHTML = '<div class="dive-ai-result">' + formatAIText(d.recommendations || 'No recommendations available.') + '</div>';
+    }).catch(function () {
+      aiBtn.disabled = false; aiBtn.textContent = 'Get AI Recommendations';
+      aiPanel.innerHTML = '<div class="text-secondary" style="padding:12px">AI analysis unavailable.</div>';
+    });
+  };
+
+  function formatAIText(text) {
+    return text.split('\n').map(function (line) {
+      if (!line.trim()) return '';
+      return '<div style="margin-bottom:4px;line-height:1.5">' + esc(line) + '</div>';
+    }).join('');
+  }
+
+  function buildLayerInspectorHTML(data) {
+    var scoreColor = data.efficiencyScore >= 90 ? 'var(--cyan)' : data.efficiencyScore >= 70 ? '#eab308' : 'var(--orange)';
+    var scoreGrade = data.efficiencyScore >= 90 ? 'A' : data.efficiencyScore >= 80 ? 'B' : data.efficiencyScore >= 70 ? 'C' : 'F';
+    var maxLayerSize = data.layers.reduce(function (max, l) { return l.size > max ? l.size : max; }, 1);
+
+    // Header — image info + score
+    var html = '<div class="dive-inspector">' +
+      '<div class="dive-header">' +
+        '<div class="dive-image-info">' +
+          '<div class="dive-image-name">' + esc((data.repoTags[0] || data.imageId)) + '</div>' +
+          '<div class="dive-image-meta">' +
+            '<span>' + data.totalSizeFormatted + '</span>' +
+            '<span class="dive-sep">|</span>' +
+            '<span>' + data.layerCount + ' layers</span>' +
+            '<span class="dive-sep">|</span>' +
+            '<span>' + esc(data.os + '/' + data.architecture) + '</span>' +
+            (data.dockerVersion ? '<span class="dive-sep">|</span><span>Docker ' + esc(data.dockerVersion) + '</span>' : '') +
+          '</div>' +
+        '</div>' +
+        '<div class="dive-score" style="border-color:' + scoreColor + '">' +
+          '<div class="dive-score-value" style="color:' + scoreColor + '">' + data.efficiencyScore + '%</div>' +
+          '<div class="dive-score-label">Efficiency</div>' +
+          '<div class="dive-score-grade" style="color:' + scoreColor + '">' + scoreGrade + '</div>' +
+        '</div>' +
+      '</div>';
+
+    // Stats row
+    html += '<div class="dive-stats">' +
+      '<div class="dive-stat"><div class="dive-stat-value">' + data.substantiveLayerCount + '</div><div class="dive-stat-label">Data Layers</div></div>' +
+      '<div class="dive-stat"><div class="dive-stat-value">' + data.emptyLayerCount + '</div><div class="dive-stat-label">Empty Layers</div></div>' +
+      '<div class="dive-stat"><div class="dive-stat-value">' + data.largestLayer + '</div><div class="dive-stat-label">Largest Layer</div></div>' +
+      '<div class="dive-stat"><div class="dive-stat-value">' + (data.config.user || 'root') + '</div><div class="dive-stat-label">Run As</div></div>' +
+      '<div class="dive-stat"><div class="dive-stat-value">' + data.config.envCount + '</div><div class="dive-stat-label">Env Vars</div></div>' +
+      '<div class="dive-stat"><div class="dive-stat-value">' + (data.config.exposedPorts.length || 0) + '</div><div class="dive-stat-label">Ports</div></div>' +
+    '</div>';
+
+    // Optimization targets
+    if (data.optimizationTargets.length > 0) {
+      html += '<div class="dive-warnings">' +
+        '<div class="dive-warnings-title">Optimization Targets</div>';
+      data.optimizationTargets.forEach(function (t) {
+        html += '<div class="dive-warning-item">' +
+          '<span class="dive-warning-icon">!</span>' +
+          '<span>' + esc(t.reason || 'Large layer') + (t.sizeFormatted ? ' (' + t.sizeFormatted + ')' : '') + '</span>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+
+    // Layer breakdown
+    html += '<div class="dive-layers-section">' +
+      '<div class="dive-section-title">Layer Breakdown</div>' +
+      '<div class="dive-layers">';
+
+    var cumulative = 0;
+    data.layers.forEach(function (layer) {
+      cumulative += layer.size;
+      var pct = maxLayerSize > 0 ? (layer.size / maxLayerSize * 100) : 0;
+      var barColor = layer.empty ? 'var(--border)' : (layer.size > data.totalSize * 0.3 ? 'var(--orange)' : 'var(--cyan)');
+      var isPkgOp = /apt-get|apk add|yum install|npm install|pip install|gem install/i.test(layer.createdBy);
+      var isCopy = /^(COPY|ADD)\s/i.test(layer.createdBy);
+      var cmdType = layer.empty ? 'meta' : (isPkgOp ? 'pkg' : (isCopy ? 'copy' : 'run'));
+      var cmdLabel = cmdType === 'meta' ? 'META' : cmdType === 'pkg' ? 'PKG' : cmdType === 'copy' ? 'COPY' : 'RUN';
+      var cmdLabelColor = cmdType === 'meta' ? 'var(--text-tertiary)' : cmdType === 'pkg' ? '#a78bfa' : cmdType === 'copy' ? '#38bdf8' : 'var(--cyan)';
+
+      html += '<div class="dive-layer' + (layer.empty ? ' dive-layer-empty' : '') + '">' +
+        '<div class="dive-layer-header">' +
+          '<span class="dive-layer-badge" style="color:' + cmdLabelColor + '">' + cmdLabel + '</span>' +
+          '<span class="dive-layer-size">' + layer.sizeFormatted + '</span>' +
+          '<span class="dive-layer-cumulative text-tertiary">' + formatBytesClient(cumulative) + '</span>' +
+        '</div>' +
+        '<div class="dive-layer-bar-track"><div class="dive-layer-bar" style="width:' + Math.max(pct, 0.5) + '%;background:' + barColor + '"></div></div>' +
+        '<div class="dive-layer-cmd">' + esc(layer.createdBy || '(empty)') + '</div>' +
+      '</div>';
+    });
+
+    html += '</div></div>';
+
+    // AI Recommendations section
+    html += '<div class="dive-ai-section">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<div class="dive-section-title">AI Optimization Recommendations</div>' +
+        '<button class="btn btn-sm btn-cyan" id="dive-ai-btn" onclick="Views.docker.requestLayerAI(\'' + esc(data.imageId) + '\')">Get AI Recommendations</button>' +
+      '</div>' +
+      '<div id="dive-ai-panel"><div class="text-tertiary" style="padding:8px 0;font-size:12px">Click the button to get AI-powered optimization suggestions for this image.</div></div>' +
+    '</div>';
+
+    html += '</div>';
+    return html;
+  }
+
+  function formatBytesClient(bytes) {
+    if (!bytes || bytes === 0) return '0 B';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+    return (bytes / 1073741824).toFixed(2) + ' GB';
+  }
 
   // ── Networks & Volumes ──
   function loadNetworksVolumes() {

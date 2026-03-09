@@ -189,6 +189,36 @@ module.exports = function (app, ctx) {
       }
     });
 
+    server.tool('inspect_image_layers', 'Inspect Docker image layers with efficiency analysis (Dive-style)', {
+      imageId: z.string().describe('Docker image ID or name:tag'),
+    }, async ({ imageId }) => {
+      try {
+        const denied = requireMcpRole('admin', 'inspect_image_layers');
+        if (denied) return denied;
+        const docker = require('../lib/docker-engine');
+        const analysis = await docker.analyzeImageLayers(imageId);
+        const summary = {
+          image: analysis.repoTags[0] || analysis.imageId,
+          totalSize: analysis.totalSizeFormatted,
+          efficiencyScore: analysis.efficiencyScore + '%',
+          layers: analysis.layerCount,
+          dataLayers: analysis.substantiveLayerCount,
+          emptyLayers: analysis.emptyLayerCount,
+          largestLayer: analysis.largestLayer,
+          runsAs: analysis.config.user || 'root',
+          ports: analysis.config.exposedPorts,
+          optimizationTargets: analysis.optimizationTargets.map(t => t.reason),
+          layerBreakdown: analysis.layers.filter(l => !l.empty).map(l => ({
+            size: l.sizeFormatted,
+            command: l.createdBy,
+          })),
+        };
+        return { content: [{ type: 'text', text: JSON.stringify(summary, null, 2) }] };
+      } catch (e) {
+        return { content: [{ type: 'text', text: 'Error inspecting image: ' + e.message }], isError: true };
+      }
+    });
+
     // ── Database ──
 
     server.tool('list_database_tables', 'List all tables in the connected database', {},

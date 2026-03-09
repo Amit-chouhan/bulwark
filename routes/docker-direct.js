@@ -292,6 +292,54 @@ Diagnose the problem and give step-by-step instructions to fix it. Be specific w
     }
   });
 
+  // ── Image Layer Inspection (Dive-style analysis) ──
+  app.get('/api/docker/images/:id/inspect-layers', requireAdmin, async (req, res) => {
+    try {
+      const analysis = await docker.analyzeImageLayers(req.params.id);
+      res.json(analysis);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // AI optimization recommendations for image layers
+  app.post('/api/docker/images/:id/optimize-ai', requireRole('editor'), async (req, res) => {
+    try {
+      const analysis = await docker.analyzeImageLayers(req.params.id);
+      const layerSummary = analysis.layers.filter(l => !l.empty).map(l =>
+        'Layer ' + l.index + ' (' + l.sizeFormatted + '): ' + l.createdBy
+      ).join('\n');
+
+      const prompt = `Analyze this Docker image for optimization. Be concise (6-8 bullet points max).
+
+Image: ${(analysis.repoTags[0] || analysis.imageId)}
+Total Size: ${analysis.totalSizeFormatted}
+Layers: ${analysis.layerCount} (${analysis.substantiveLayerCount} with data, ${analysis.emptyLayerCount} empty)
+Efficiency: ${analysis.efficiencyScore}%
+Largest Layer: ${analysis.largestLayer}
+Config: runs as ${analysis.config.user}, ${analysis.config.envCount} env vars, ports: ${analysis.config.exposedPorts.join(', ') || 'none'}
+
+Layers:
+${layerSummary}
+
+${analysis.optimizationTargets.length > 0 ? 'Detected issues:\n' + analysis.optimizationTargets.map(t => '- Layer ' + t.layer + ': ' + t.reason).join('\n') : ''}
+
+Give specific, actionable Dockerfile optimization recommendations. Focus on: multi-stage builds, layer combining, cache optimization, base image alternatives, security (non-root user, minimal attack surface). No markdown headers, just numbered recommendations.`;
+
+      const neuralCache = require('../lib/neural-cache');
+      const cacheKey = 'dive-ai:' + analysis.imageId;
+      const cached = neuralCache.semanticGet(cacheKey);
+      if (cached) return res.json({ recommendations: cached.response, cached: true });
+
+      const { askAI } = require('../lib/ai');
+      const recommendations = await askAI(prompt, { timeout: 30000 }) || 'AI optimization unavailable.';
+      neuralCache.semanticSet(cacheKey, recommendations);
+      res.json({ recommendations, cached: false });
+    } catch (e) {
+      res.json({ recommendations: 'AI analysis unavailable: ' + e.message, fallback: true });
+    }
+  });
+
   // Networks
   app.get('/api/docker/networks', requireAdmin, async (req, res) => {
     try {
