@@ -758,17 +758,7 @@ window.animateValue = function(el, end, duration) {
   // Alias for the existing refreshAll button in HTML
   window.refreshAll = window.refreshAll || window.refreshCurrentView;
 
-  // ── Keyboard Shortcuts ──
-  document.addEventListener('keydown', function (e) {
-    // Ctrl+K / Cmd+K — Command palette placeholder
-    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-      e.preventDefault();
-      console.log('[Monitor] Command palette triggered (placeholder)');
-      if (typeof Toast !== 'undefined') {
-        Toast.info('Command palette coming soon');
-      }
-    }
-  });
+  // Keyboard shortcuts now managed by hotkeys.js
 
   // ── Initialize on DOMContentLoaded ──
   document.addEventListener('DOMContentLoaded', function () {

@@ -10,6 +10,9 @@ const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js');
 const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/server/streamableHttp.js');
 const { z } = require('zod');
 const os = require('os');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
 const { getRoleLevel } = require('../lib/rbac');
 
 module.exports = function (app, ctx) {
@@ -339,24 +342,79 @@ module.exports = function (app, ctx) {
         try {
           const denied = requireMcpRole('admin', 'get_security_score');
           if (denied) return denied;
-          // Use internal fetch to hit our own security endpoint
-          const http = require('http');
-          return new Promise((resolve) => {
-            const req = http.get('http://localhost:' + (process.env.MONITOR_PORT || 3001) + '/api/security/posture', (res) => {
-              let data = '';
-              res.on('data', chunk => data += chunk);
-              res.on('end', () => {
-                try {
-                  const parsed = JSON.parse(data);
-                  resolve({ content: [{ type: 'text', text: JSON.stringify(parsed, null, 2) }] });
-                } catch {
-                  resolve({ content: [{ type: 'text', text: data }] });
-                }
-              });
-            });
-            req.on('error', (e) => resolve({ content: [{ type: 'text', text: 'Error: ' + e.message }], isError: true }));
-            req.setTimeout(10000, () => { req.destroy(); resolve({ content: [{ type: 'text', text: 'Security scan timed out' }], isError: true }); });
-          });
+          const { execCommand, REPO_DIR } = ctx;
+          const checks = [];
+          let score = 100;
+
+          // Check 1: .env files not in git
+          try {
+            const envCheck = await execCommand('git ls-files .env .env.local .env.production 2>/dev/null', { cwd: REPO_DIR, timeout: 3000 });
+            const tracked = envCheck.stdout.trim();
+            if (tracked) { checks.push({ name: '.env in Git', status: 'fail', detail: 'Environment files tracked by git', severity: 'critical' }); score -= 20; }
+            else checks.push({ name: '.env in Git', status: 'pass', detail: 'Environment files properly gitignored' });
+          } catch { checks.push({ name: '.env in Git', status: 'pass', detail: 'No tracked env files' }); }
+
+          // Check 2: .gitignore exists
+          const gitignoreExists = fs.existsSync(path.join(REPO_DIR, '.gitignore'));
+          checks.push({ name: '.gitignore', status: gitignoreExists ? 'pass' : 'warn', detail: gitignoreExists ? 'Present' : 'Missing .gitignore file' });
+          if (!gitignoreExists) score -= 10;
+
+          // Check 3: No hardcoded secrets in code
+          try {
+            const secretScan = await execCommand(
+              'git grep -n -E "(password|secret|api_key|private_key)\\s*[:=]\\s*[\'\\"][^\\s]{8,}" -- "*.js" "*.ts" "*.json" 2>/dev/null | head -10',
+              { cwd: REPO_DIR, timeout: 5000 }
+            );
+            const found = secretScan.stdout.trim();
+            if (found) {
+              const count = found.split('\n').filter(Boolean).length;
+              checks.push({ name: 'Hardcoded Secrets', status: 'fail', detail: count + ' potential secrets found in code', severity: 'high' });
+              score -= 15;
+            } else {
+              checks.push({ name: 'Hardcoded Secrets', status: 'pass', detail: 'No hardcoded secrets detected' });
+            }
+          } catch { checks.push({ name: 'Hardcoded Secrets', status: 'pass', detail: 'Scan clean' }); }
+
+          // Check 4: package-lock.json exists (dependency pinning)
+          const lockExists = fs.existsSync(path.join(REPO_DIR, 'package-lock.json')) || fs.existsSync(path.join(REPO_DIR, 'yarn.lock'));
+          checks.push({ name: 'Dependency Lock', status: lockExists ? 'pass' : 'warn', detail: lockExists ? 'Lock file present' : 'No lock file — unpinned dependencies' });
+          if (!lockExists) score -= 5;
+
+          // Check 5: Node.js version
+          try {
+            const nodeVer = await execCommand('node --version', { timeout: 3000 });
+            const ver = parseInt((nodeVer.stdout.trim().match(/v(\d+)/) || [])[1] || '0');
+            const current = ver >= 20;
+            checks.push({ name: 'Node.js Version', status: current ? 'pass' : 'warn', detail: nodeVer.stdout.trim() + (current ? ' (supported)' : ' (outdated)') });
+            if (!current) score -= 5;
+          } catch { checks.push({ name: 'Node.js Version', status: 'warn', detail: 'Could not check' }); }
+
+          // Check 6: HTTPS/TLS configured
+          const hasSSL = !!process.env.SSL_CERT || !!process.env.HTTPS;
+          checks.push({ name: 'HTTPS/TLS', status: hasSSL ? 'pass' : 'info', detail: hasSSL ? 'TLS configured' : 'Running HTTP (use reverse proxy for HTTPS)' });
+
+          // Check 7: Auth strength
+          try {
+            const usersFile = path.join(__dirname, '..', 'users.json');
+            const users = JSON.parse(fs.readFileSync(usersFile, 'utf8'));
+            const hasDefault = users.some(u => u.user === 'admin' && !u.totpSecret);
+            checks.push({ name: 'Auth Security', status: hasDefault ? 'warn' : 'pass', detail: hasDefault ? 'Default admin without 2FA' : '2FA enabled for admin' });
+            if (hasDefault) score -= 10;
+          } catch { checks.push({ name: 'Auth Security', status: 'info', detail: 'Could not check' }); }
+
+          // Check 8: npm audit
+          try {
+            const audit = await execCommand('npm audit --json 2>/dev/null | head -c 2000', { cwd: REPO_DIR, timeout: 15000 });
+            const auditData = JSON.parse(audit.stdout || '{}');
+            const vulns = auditData.metadata?.vulnerabilities || {};
+            const critical = (vulns.critical || 0) + (vulns.high || 0);
+            checks.push({ name: 'npm Audit', status: critical === 0 ? 'pass' : 'fail', detail: critical ? critical + ' critical/high vulnerabilities' : 'No critical vulnerabilities', severity: critical > 0 ? 'high' : undefined });
+            if (critical > 0) score -= 10;
+          } catch { checks.push({ name: 'npm Audit', status: 'info', detail: 'Could not run audit' }); }
+
+          score = Math.max(0, Math.min(100, score));
+          const grade = score >= 90 ? 'A' : score >= 75 ? 'B' : score >= 60 ? 'C' : score >= 40 ? 'D' : 'F';
+          return { content: [{ type: 'text', text: JSON.stringify({ score, grade, checks, checkedAt: new Date().toISOString() }, null, 2) }] };
         } catch (e) {
           return { content: [{ type: 'text', text: 'Error: ' + e.message }], isError: true };
         }
@@ -402,6 +460,537 @@ module.exports = function (app, ctx) {
       }
     });
 
+    // ── GitHub Hub ──
+
+    server.tool('list_github_repos', 'List tracked GitHub repos with optional filters', {
+      category: z.string().optional().describe('Filter by category name'),
+      source: z.enum(['public', 'account', 'all']).optional().describe('Filter by repo source'),
+    }, async ({ category, source }) => {
+      try {
+        const denied = requireMcpRole('admin', 'list_github_repos');
+        if (denied) return denied;
+        const hubPath = path.join(__dirname, '..', 'data', 'github-hub.json');
+        if (!fs.existsSync(hubPath)) return { content: [{ type: 'text', text: JSON.stringify([], null, 2) }] };
+        const hub = JSON.parse(fs.readFileSync(hubPath, 'utf8'));
+        let repos = hub.repos || [];
+        if (category) repos = repos.filter(r => r.category === category);
+        if (source === 'public') repos = repos.filter(r => !r.accountId);
+        else if (source === 'account') repos = repos.filter(r => !!r.accountId);
+        const summary = repos.map(r => ({
+          id: r.id, fullName: r.fullName, description: r.description,
+          language: r.language, stars: r.stars, forks: r.forks,
+          category: r.category, source: r.source || (r.accountId ? 'account' : 'public'),
+          lastSynced: r.lastSynced, pushedAt: r.pushedAt,
+        }));
+        return { content: [{ type: 'text', text: JSON.stringify(summary, null, 2) }] };
+      } catch (e) {
+        return { content: [{ type: 'text', text: 'Error: ' + e.message }], isError: true };
+      }
+    });
+
+    server.tool('add_github_repo', 'Add a public GitHub repo to track', {
+      url: z.string().describe('owner/repo or full GitHub URL'),
+      category: z.string().optional().describe('Category to assign'),
+      notes: z.string().optional().describe('Notes about this repo'),
+    }, async ({ url, category, notes }) => {
+      try {
+        const denied = requireMcpRole('editor', 'add_github_repo');
+        if (denied) return denied;
+
+        // Parse owner/repo from URL or shorthand
+        const input = url.trim().replace(/\.git$/, '').replace(/\/$/, '');
+        let owner, repo;
+        const slash = input.match(/^([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)$/);
+        if (slash) { owner = slash[1]; repo = slash[2]; }
+        else {
+          const urlMatch = input.match(/github\.com\/([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)/);
+          if (urlMatch) { owner = urlMatch[1]; repo = urlMatch[2]; }
+        }
+        if (!owner || !repo) return { content: [{ type: 'text', text: 'Could not parse repo URL. Use owner/repo or full GitHub URL.' }], isError: true };
+
+        const hubPath = path.join(__dirname, '..', 'data', 'github-hub.json');
+        const defaultHub = { accounts: [], repos: [], categories: ['AI/ML', 'DevOps', 'Frontend', 'Backend', 'Security', 'Infrastructure', 'Data', 'Mobile', 'Research', 'Uncategorized'], settings: { defaultCategory: 'Uncategorized' } };
+        let hub;
+        try { hub = JSON.parse(fs.readFileSync(hubPath, 'utf8')); } catch { hub = JSON.parse(JSON.stringify(defaultHub)); }
+
+        // Check duplicate
+        if ((hub.repos || []).find(r => r.fullName?.toLowerCase() === (owner + '/' + repo).toLowerCase())) {
+          return { content: [{ type: 'text', text: 'Repo ' + owner + '/' + repo + ' is already tracked.' }], isError: true };
+        }
+
+        // Fetch from GitHub API (public, unauthenticated)
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        try {
+          const ghRes = await fetch('https://api.github.com/repos/' + owner + '/' + repo, {
+            headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Bulwark/2.1' },
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+          if (!ghRes.ok) return { content: [{ type: 'text', text: 'GitHub API error: ' + ghRes.status + ' ' + ghRes.statusText + '. Repo may be private.' }], isError: true };
+          const data = await ghRes.json();
+
+          const repoObj = {
+            id: crypto.randomUUID(),
+            accountId: null,
+            source: 'public',
+            owner: data.owner?.login || owner,
+            name: data.name,
+            fullName: data.full_name,
+            htmlUrl: data.html_url,
+            description: data.description || '',
+            language: data.language || 'Unknown',
+            stars: data.stargazers_count || 0,
+            forks: data.forks_count || 0,
+            openIssues: data.open_issues_count || 0,
+            defaultBranch: data.default_branch || 'main',
+            topics: data.topics || [],
+            isPrivate: data.private || false,
+            license: data.license?.spdx_id || null,
+            pushedAt: data.pushed_at,
+            updatedAt: data.updated_at,
+            createdAt: data.created_at,
+            size: data.size || 0,
+            archived: data.archived || false,
+            fork: data.fork || false,
+            category: category || hub.settings?.defaultCategory || 'Uncategorized',
+            tags: [],
+            notes: notes || '',
+            starred: false,
+            aiSummary: null,
+            aiResearch: null,
+            addedAt: new Date().toISOString(),
+            lastSynced: new Date().toISOString(),
+            syncError: null,
+          };
+
+          if (!hub.repos) hub.repos = [];
+          hub.repos.push(repoObj);
+          const dir = path.dirname(hubPath);
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(hubPath, JSON.stringify(hub, null, 2));
+
+          return { content: [{ type: 'text', text: JSON.stringify({ added: repoObj.fullName, stars: repoObj.stars, language: repoObj.language, id: repoObj.id }, null, 2) }] };
+        } finally {
+          clearTimeout(timeout);
+        }
+      } catch (e) {
+        return { content: [{ type: 'text', text: 'Error: ' + e.message }], isError: true };
+      }
+    });
+
+    server.tool('sync_github_repo', 'Refresh repo data from GitHub', {
+      repoId: z.string().describe('Repository ID to sync'),
+    }, async ({ repoId }) => {
+      try {
+        const denied = requireMcpRole('editor', 'sync_github_repo');
+        if (denied) return denied;
+        const hubPath = path.join(__dirname, '..', 'data', 'github-hub.json');
+        if (!fs.existsSync(hubPath)) return { content: [{ type: 'text', text: 'No GitHub Hub data found' }], isError: true };
+        const hub = JSON.parse(fs.readFileSync(hubPath, 'utf8'));
+        const repo = (hub.repos || []).find(r => r.id === repoId);
+        if (!repo) return { content: [{ type: 'text', text: 'Repo not found with id: ' + repoId }], isError: true };
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        try {
+          const ghRes = await fetch('https://api.github.com/repos/' + repo.owner + '/' + repo.name, {
+            headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Bulwark/2.1' },
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+          if (!ghRes.ok) {
+            repo.syncError = 'GitHub API ' + ghRes.status;
+            fs.writeFileSync(hubPath, JSON.stringify(hub, null, 2));
+            return { content: [{ type: 'text', text: 'Sync failed: GitHub API ' + ghRes.status }], isError: true };
+          }
+          const data = await ghRes.json();
+          repo.description = data.description || repo.description;
+          repo.language = data.language || repo.language;
+          repo.stars = data.stargazers_count || 0;
+          repo.forks = data.forks_count || 0;
+          repo.openIssues = data.open_issues_count || 0;
+          repo.topics = data.topics || repo.topics;
+          repo.pushedAt = data.pushed_at;
+          repo.updatedAt = data.updated_at;
+          repo.size = data.size || repo.size;
+          repo.archived = data.archived || false;
+          repo.lastSynced = new Date().toISOString();
+          repo.syncError = null;
+
+          fs.writeFileSync(hubPath, JSON.stringify(hub, null, 2));
+          return { content: [{ type: 'text', text: JSON.stringify({ synced: repo.fullName, stars: repo.stars, lastSynced: repo.lastSynced }, null, 2) }] };
+        } finally {
+          clearTimeout(timeout);
+        }
+      } catch (e) {
+        return { content: [{ type: 'text', text: 'Error: ' + e.message }], isError: true };
+      }
+    });
+
+    // ── Cron Jobs ──
+
+    server.tool('list_cron_jobs', 'List configured cron jobs with status and run history', {},
+      async () => {
+        try {
+          const denied = requireMcpRole('admin', 'list_cron_jobs');
+          if (denied) return denied;
+          const jobsPath = path.join(__dirname, '..', 'data', 'cron-jobs.json');
+          const runsPath = path.join(__dirname, '..', 'data', 'cron-runs.json');
+          let jobs = [];
+          let runs = [];
+          try { jobs = JSON.parse(fs.readFileSync(jobsPath, 'utf8')); } catch {}
+          try { runs = JSON.parse(fs.readFileSync(runsPath, 'utf8')); } catch {}
+          if (!Array.isArray(jobs)) jobs = [];
+          if (!Array.isArray(runs)) runs = [];
+          const enriched = jobs.map(j => {
+            const jobRuns = runs.filter(r => r.jobId === j.id);
+            const lastRun = jobRuns.length ? jobRuns[jobRuns.length - 1] : null;
+            return {
+              id: j.id, name: j.name, schedule: j.schedule, command: j.command,
+              enabled: j.enabled !== false, category: j.category || 'general',
+              lastRun: lastRun?.finishedAt || null,
+              lastStatus: lastRun?.status || null,
+              totalRuns: jobRuns.length,
+            };
+          });
+          return { content: [{ type: 'text', text: JSON.stringify(enriched, null, 2) }] };
+        } catch (e) {
+          return { content: [{ type: 'text', text: 'Error: ' + e.message }], isError: true };
+        }
+      }
+    );
+
+    server.tool('manage_cron_job', 'Create or delete a cron job', {
+      action: z.enum(['create', 'delete']).describe('Action to perform'),
+      id: z.string().optional().describe('Job ID (required for delete)'),
+      schedule: z.string().optional().describe('Cron expression (required for create)'),
+      command: z.string().optional().describe('Shell command (required for create)'),
+      name: z.string().optional().describe('Display name for the job'),
+    }, async ({ action, id, schedule, command, name }) => {
+      try {
+        const denied = requireMcpRole('editor', 'manage_cron_job');
+        if (denied) return denied;
+        const jobsPath = path.join(__dirname, '..', 'data', 'cron-jobs.json');
+        let jobs = [];
+        try { jobs = JSON.parse(fs.readFileSync(jobsPath, 'utf8')); } catch {}
+        if (!Array.isArray(jobs)) jobs = [];
+
+        if (action === 'create') {
+          if (!schedule || !command) return { content: [{ type: 'text', text: 'schedule and command are required for create' }], isError: true };
+          const job = {
+            id: crypto.randomUUID(),
+            name: name || command.split(' ')[0],
+            schedule,
+            command,
+            description: '',
+            category: 'general',
+            tags: [],
+            enabled: true,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          jobs.push(job);
+          const dir = path.dirname(jobsPath);
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(jobsPath, JSON.stringify(jobs, null, 2));
+          return { content: [{ type: 'text', text: 'Cron job created: ' + job.name + ' (' + schedule + ') id=' + job.id }] };
+        } else {
+          if (!id) return { content: [{ type: 'text', text: 'id is required for delete' }], isError: true };
+          const before = jobs.length;
+          jobs = jobs.filter(j => j.id !== id);
+          if (jobs.length === before) return { content: [{ type: 'text', text: 'Job not found: ' + id }], isError: true };
+          fs.writeFileSync(jobsPath, JSON.stringify(jobs, null, 2));
+          return { content: [{ type: 'text', text: 'Cron job deleted: ' + id }] };
+        }
+      } catch (e) {
+        return { content: [{ type: 'text', text: 'Error: ' + e.message }], isError: true };
+      }
+    });
+
+    // ── Environment Variables ──
+
+    server.tool('list_env_vars', 'List environment variables with masked values', {},
+      async () => {
+        try {
+          const denied = requireMcpRole('admin', 'list_env_vars');
+          if (denied) return denied;
+          const envPath = path.join(__dirname, '..', 'data', 'envvars.json');
+          if (!fs.existsSync(envPath)) return { content: [{ type: 'text', text: JSON.stringify([], null, 2) }] };
+          const data = JSON.parse(fs.readFileSync(envPath, 'utf8'));
+          const vars = (data.variables || []).map(v => ({
+            key: v.key,
+            value: v.value ? v.value.substring(0, 4) + '****' : '****',
+            encrypted: v.encrypted || false,
+            updatedAt: v.updatedAt || null,
+          }));
+          return { content: [{ type: 'text', text: JSON.stringify(vars, null, 2) }] };
+        } catch (e) {
+          return { content: [{ type: 'text', text: 'Error: ' + e.message }], isError: true };
+        }
+      }
+    );
+
+    server.tool('set_env_var', 'Set an environment variable', {
+      key: z.string().describe('Variable name'),
+      value: z.string().describe('Variable value'),
+      encrypted: z.boolean().optional().describe('Store as encrypted'),
+    }, async ({ key, value, encrypted }) => {
+      try {
+        const denied = requireMcpRole('editor', 'set_env_var');
+        if (denied) return denied;
+        if (!key.match(/^[A-Za-z_][A-Za-z0-9_]*$/)) return { content: [{ type: 'text', text: 'Invalid variable name. Use letters, digits, and underscores.' }], isError: true };
+        const envPath = path.join(__dirname, '..', 'data', 'envvars.json');
+        let data = { variables: [] };
+        try { data = JSON.parse(fs.readFileSync(envPath, 'utf8')); } catch {}
+        if (!data.variables) data.variables = [];
+        const idx = data.variables.findIndex(v => v.key === key);
+        const entry = { key, value, encrypted: !!encrypted, updatedAt: new Date().toISOString() };
+        if (idx >= 0) data.variables[idx] = entry;
+        else data.variables.push(entry);
+        const dir = path.dirname(envPath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(envPath, JSON.stringify(data, null, 2));
+        return { content: [{ type: 'text', text: 'Environment variable set: ' + key }] };
+      } catch (e) {
+        return { content: [{ type: 'text', text: 'Error: ' + e.message }], isError: true };
+      }
+    });
+
+    // ── File Operations ──
+
+    server.tool('read_file', 'Read a file from the managed repository', {
+      path: z.string().describe('Relative path within repo'),
+      lines: z.number().optional().describe('Max lines to return, default 200'),
+    }, async ({ path: filePath, lines }) => {
+      try {
+        const denied = requireMcpRole('editor', 'read_file');
+        if (denied) return denied;
+        const { REPO_DIR } = ctx;
+        // Validate no path traversal
+        if (filePath.includes('..')) return { content: [{ type: 'text', text: 'Path traversal not allowed: .. is forbidden' }], isError: true };
+        const resolved = path.resolve(REPO_DIR, filePath);
+        if (!resolved.startsWith(path.resolve(REPO_DIR))) return { content: [{ type: 'text', text: 'Path escapes repository directory' }], isError: true };
+        if (!fs.existsSync(resolved)) return { content: [{ type: 'text', text: 'File not found: ' + filePath }], isError: true };
+        const stat = fs.statSync(resolved);
+        if (stat.isDirectory()) return { content: [{ type: 'text', text: 'Path is a directory, not a file. Use list_files instead.' }], isError: true };
+        const maxLines = lines || 200;
+        const content = fs.readFileSync(resolved, 'utf8');
+        const allLines = content.split('\n');
+        const truncated = allLines.length > maxLines;
+        const output = allLines.slice(0, maxLines).join('\n');
+        const info = { path: filePath, size: stat.size, totalLines: allLines.length, truncated, linesReturned: Math.min(allLines.length, maxLines) };
+        return { content: [{ type: 'text', text: JSON.stringify(info, null, 2) + '\n---\n' + output }] };
+      } catch (e) {
+        return { content: [{ type: 'text', text: 'Error: ' + e.message }], isError: true };
+      }
+    });
+
+    server.tool('list_files', 'List files in a directory within the managed repository', {
+      path: z.string().optional().describe('Relative directory path, default root'),
+      pattern: z.string().optional().describe('Glob pattern filter (e.g. *.js)'),
+    }, async ({ path: dirPath, pattern }) => {
+      try {
+        const denied = requireMcpRole('admin', 'list_files');
+        if (denied) return denied;
+        const { REPO_DIR } = ctx;
+        const relPath = dirPath || '.';
+        if (relPath.includes('..')) return { content: [{ type: 'text', text: 'Path traversal not allowed: .. is forbidden' }], isError: true };
+        const resolved = path.resolve(REPO_DIR, relPath);
+        if (!resolved.startsWith(path.resolve(REPO_DIR))) return { content: [{ type: 'text', text: 'Path escapes repository directory' }], isError: true };
+        if (!fs.existsSync(resolved)) return { content: [{ type: 'text', text: 'Directory not found: ' + relPath }], isError: true };
+        const entries = fs.readdirSync(resolved, { withFileTypes: true });
+        let files = entries.map(e => {
+          const fullPath = path.join(resolved, e.name);
+          let size = 0;
+          try { size = e.isFile() ? fs.statSync(fullPath).size : 0; } catch {}
+          return { name: e.name, type: e.isDirectory() ? 'directory' : 'file', size };
+        });
+        if (pattern) {
+          const re = new RegExp('^' + pattern.replace(/\./g, '\\.').replace(/\*/g, '.*').replace(/\?/g, '.') + '$');
+          files = files.filter(f => f.type === 'directory' || re.test(f.name));
+        }
+        files.sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === 'directory' ? -1 : 1));
+        return { content: [{ type: 'text', text: JSON.stringify({ directory: relPath, count: files.length, files }, null, 2) }] };
+      } catch (e) {
+        return { content: [{ type: 'text', text: 'Error: ' + e.message }], isError: true };
+      }
+    });
+
+    // ── Git Enhanced ──
+
+    server.tool('list_git_branches', 'List git branches', {
+      remote: z.boolean().optional().describe('Include remote branches'),
+    }, async ({ remote }) => {
+      try {
+        const denied = requireMcpRole('admin', 'list_git_branches');
+        if (denied) return denied;
+        const cmd = remote ? 'git branch -a' : 'git branch';
+        const result = await ctx.execCommand(cmd, { cwd: ctx.REPO_DIR, timeout: 5000 });
+        const lines = (result.stdout || '').split('\n').filter(Boolean);
+        const branches = lines.map(l => {
+          const current = l.startsWith('* ');
+          const name = l.replace(/^\*?\s+/, '').trim();
+          return { name, current };
+        });
+        return { content: [{ type: 'text', text: JSON.stringify(branches, null, 2) }] };
+      } catch (e) {
+        return { content: [{ type: 'text', text: 'Error: ' + e.message }], isError: true };
+      }
+    });
+
+    server.tool('get_git_status', 'Get working tree status with staged, unstaged, and untracked files', {},
+      async () => {
+        try {
+          const denied = requireMcpRole('admin', 'get_git_status');
+          if (denied) return denied;
+          const result = await ctx.execCommand('git status --porcelain', { cwd: ctx.REPO_DIR, timeout: 5000 });
+          const lines = (result.stdout || '').split('\n').filter(Boolean);
+          const staged = [];
+          const unstaged = [];
+          const untracked = [];
+          for (const line of lines) {
+            const x = line[0]; // index status
+            const y = line[1]; // worktree status
+            const file = line.substring(3);
+            if (x === '?' && y === '?') { untracked.push(file); }
+            else {
+              if (x !== ' ' && x !== '?') staged.push({ status: x, file });
+              if (y !== ' ' && y !== '?') unstaged.push({ status: y, file });
+            }
+          }
+          const branch = await ctx.execCommand('git branch --show-current', { cwd: ctx.REPO_DIR, timeout: 3000 });
+          return { content: [{ type: 'text', text: JSON.stringify({
+            branch: branch.stdout.trim(),
+            clean: lines.length === 0,
+            staged, unstaged, untracked,
+            summary: staged.length + ' staged, ' + unstaged.length + ' unstaged, ' + untracked.length + ' untracked',
+          }, null, 2) }] };
+        } catch (e) {
+          return { content: [{ type: 'text', text: 'Error: ' + e.message }], isError: true };
+        }
+      }
+    );
+
+    server.tool('git_commit_details', 'Get details of a specific commit', {
+      hash: z.string().describe('Commit hash or ref'),
+    }, async ({ hash }) => {
+      try {
+        const denied = requireMcpRole('admin', 'git_commit_details');
+        if (denied) return denied;
+        // Sanitize hash — only allow alphanumeric, ~, ^, /, -, .
+        if (!hash.match(/^[a-zA-Z0-9~^\/\-._]+$/)) return { content: [{ type: 'text', text: 'Invalid commit reference' }], isError: true };
+        const result = await ctx.execCommand('git show --stat --format="commit %H%nauthor %an <%ae>%ndate %ai%nsubject %s%n%b" ' + hash, { cwd: ctx.REPO_DIR, timeout: 5000 });
+        return { content: [{ type: 'text', text: result.stdout || 'Commit not found' }] };
+      } catch (e) {
+        return { content: [{ type: 'text', text: 'Error: ' + e.message }], isError: true };
+      }
+    });
+
+    // ── Database Enhanced ──
+
+    server.tool('get_table_schema', 'Get detailed schema for a database table including columns, types, and constraints', {
+      tableName: z.string().describe('Table name to inspect'),
+    }, async ({ tableName }) => {
+      try {
+        const denied = requireMcpRole('admin', 'get_table_schema');
+        if (denied) return denied;
+        if (!ctx.dbQuery) return { content: [{ type: 'text', text: 'No database connected' }] };
+        // Sanitize table name
+        if (!tableName.match(/^[a-zA-Z_][a-zA-Z0-9_]*$/)) return { content: [{ type: 'text', text: 'Invalid table name' }], isError: true };
+        const columns = await ctx.dbQuery(
+          "SELECT column_name, data_type, character_maximum_length, column_default, is_nullable FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 ORDER BY ordinal_position",
+          [tableName]
+        );
+        const constraints = await ctx.dbQuery(
+          "SELECT tc.constraint_name, tc.constraint_type, kcu.column_name FROM information_schema.table_constraints tc JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name WHERE tc.table_schema = 'public' AND tc.table_name = $1",
+          [tableName]
+        );
+        const indexes = await ctx.dbQuery(
+          "SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = 'public' AND tablename = $1",
+          [tableName]
+        );
+        if (!columns.length) return { content: [{ type: 'text', text: 'Table not found: ' + tableName }], isError: true };
+        return { content: [{ type: 'text', text: JSON.stringify({ table: tableName, columns, constraints, indexes }, null, 2) }] };
+      } catch (e) {
+        return { content: [{ type: 'text', text: 'Error: ' + e.message }], isError: true };
+      }
+    });
+
+    server.tool('list_db_backups', 'List database backups with sizes and dates', {},
+      async () => {
+        try {
+          const denied = requireMcpRole('admin', 'list_db_backups');
+          if (denied) return denied;
+          const backupsDir = path.join(__dirname, '..', 'data', 'backups');
+          if (!fs.existsSync(backupsDir)) return { content: [{ type: 'text', text: JSON.stringify([], null, 2) }] };
+          const entries = fs.readdirSync(backupsDir);
+          const backups = entries.map(name => {
+            try {
+              const stat = fs.statSync(path.join(backupsDir, name));
+              return { name, size: stat.size, sizeHuman: (stat.size / 1024 / 1024).toFixed(2) + ' MB', created: stat.mtime.toISOString() };
+            } catch { return { name, size: 0, sizeHuman: '0 MB', created: null }; }
+          }).sort((a, b) => new Date(b.created || 0) - new Date(a.created || 0));
+          return { content: [{ type: 'text', text: JSON.stringify(backups, null, 2) }] };
+        } catch (e) {
+          return { content: [{ type: 'text', text: 'Error: ' + e.message }], isError: true };
+        }
+      }
+    );
+
+    server.tool('create_db_backup', 'Create a database backup using pg_dump', {
+      name: z.string().optional().describe('Backup file name (auto-generated if omitted)'),
+    }, async ({ name }) => {
+      try {
+        const denied = requireMcpRole('admin', 'create_db_backup');
+        if (denied) return denied;
+        const backupsDir = path.join(__dirname, '..', 'data', 'backups');
+        if (!fs.existsSync(backupsDir)) fs.mkdirSync(backupsDir, { recursive: true });
+        const ts = new Date().toISOString().replace(/[:.]/g, '-');
+        const fileName = (name ? name.replace(/[^a-zA-Z0-9_-]/g, '_') : 'backup-' + ts) + '.sql';
+        const outPath = path.join(backupsDir, fileName);
+        const dbUrl = process.env.DATABASE_URL;
+        if (!dbUrl) return { content: [{ type: 'text', text: 'No DATABASE_URL configured' }], isError: true };
+        const result = await ctx.execCommand('pg_dump "' + dbUrl + '" > "' + outPath.replace(/\\/g, '/') + '"', { timeout: 60000 });
+        if (result.stderr && result.stderr.includes('error')) {
+          return { content: [{ type: 'text', text: 'pg_dump error: ' + result.stderr }], isError: true };
+        }
+        let size = 0;
+        try { size = fs.statSync(outPath).size; } catch {}
+        return { content: [{ type: 'text', text: JSON.stringify({ created: fileName, size, sizeHuman: (size / 1024 / 1024).toFixed(2) + ' MB' }, null, 2) }] };
+      } catch (e) {
+        return { content: [{ type: 'text', text: 'Error: ' + e.message }], isError: true };
+      }
+    });
+
+    // ── Credentials Vault ──
+
+    server.tool('list_credentials', 'List stored credentials (names and types only, no secrets)', {},
+      async () => {
+        try {
+          const denied = requireMcpRole('admin', 'list_credentials');
+          if (denied) return denied;
+          try {
+            const vault = require('../lib/credential-vault');
+            const creds = vault.listCredentials();
+            return { content: [{ type: 'text', text: JSON.stringify(creds, null, 2) }] };
+          } catch {
+            // Fallback: read vault file directly
+            const vaultPath = path.join(__dirname, '..', 'data', 'credentials-vault.json');
+            if (!fs.existsSync(vaultPath)) return { content: [{ type: 'text', text: JSON.stringify([], null, 2) }] };
+            const data = JSON.parse(fs.readFileSync(vaultPath, 'utf8'));
+            const safe = (data.credentials || []).map(c => ({
+              id: c.id, name: c.name, type: c.type,
+              tags: c.tags || [], createdAt: c.createdAt,
+            }));
+            return { content: [{ type: 'text', text: JSON.stringify(safe, null, 2) }] };
+          }
+        } catch (e) {
+          return { content: [{ type: 'text', text: 'Error: ' + e.message }], isError: true };
+        }
+      }
+    );
+
     // ════════════════════════════════════════════════════════════════════════
     // RESOURCES — Read-only context data
     // ════════════════════════════════════════════════════════════════════════
@@ -433,6 +1022,24 @@ module.exports = function (app, ctx) {
           return { contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(endpoints, null, 2) }] };
         } catch {
           return { contents: [{ uri: uri.href, mimeType: 'text/plain', text: 'No uptime data' }] };
+        }
+      }
+    );
+
+    server.resource('github-repos', 'monitor://github/repos', { description: 'List of tracked GitHub repositories' },
+      async (uri) => {
+        try {
+          const hubPath = path.join(__dirname, '..', 'data', 'github-hub.json');
+          if (!fs.existsSync(hubPath)) return { contents: [{ uri: uri.href, mimeType: 'application/json', text: '[]' }] };
+          const hub = JSON.parse(fs.readFileSync(hubPath, 'utf8'));
+          const repos = (hub.repos || []).map(r => ({
+            id: r.id, fullName: r.fullName, description: r.description,
+            language: r.language, stars: r.stars, category: r.category,
+            lastSynced: r.lastSynced,
+          }));
+          return { contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(repos, null, 2) }] };
+        } catch {
+          return { contents: [{ uri: uri.href, mimeType: 'text/plain', text: 'No GitHub Hub data' }] };
         }
       }
     );
@@ -476,6 +1083,15 @@ module.exports = function (app, ctx) {
         }],
       })
     );
+
+    server.prompt('repo_analysis', 'Analyze a GitHub repository health, activity, and code quality', {
+      repo: z.string().describe('Repository full name (owner/repo) or ID'),
+    }, ({ repo }) => ({
+      messages: [{
+        role: 'user',
+        content: { type: 'text', text: 'Analyze the GitHub repository "' + repo + '". Use list_github_repos to find it, then examine its health, activity, and code quality. Consider: stars/forks growth, last push date, open issues, language, license, and any available AI summaries. Provide a health score (1-10), key strengths, concerns, and actionable recommendations for improving the repository.' },
+      }],
+    }));
 
     return server;
   }
@@ -553,9 +1169,9 @@ module.exports = function (app, ctx) {
       url: mcpUrl,
       transport: 'streamable-http',
       version: '2.1.0',
-      tools: 18,
-      resources: 2,
-      prompts: 4,
+      tools: 34,
+      resources: 3,
+      prompts: 5,
       instructions: {
         claudeDesktop: {
           config: {

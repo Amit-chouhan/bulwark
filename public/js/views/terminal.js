@@ -80,15 +80,7 @@
       '</div>';
 
     document.body.appendChild(drawer);
-
-    // Keyboard shortcut: Ctrl+` toggle, Ctrl+Shift+` cycle size
-    document.addEventListener('keydown', function (e) {
-      if (e.ctrlKey && e.key === '`') {
-        e.preventDefault();
-        if (e.shiftKey) Views.terminal.cycleSize();
-        else Views.terminal.toggleDrawer();
-      }
-    });
+    // Keyboard shortcuts (Ctrl+`, Ctrl+Shift+`) now managed by hotkeys.js
   }
 
   function cmdTab(id, pathD, label, active) {

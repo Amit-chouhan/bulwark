@@ -85,7 +85,13 @@
     envvars:  ['envvars'],
     network:  ['cloudflare', 'ssl'],
     schedule: ['calendar', 'notes'],
-    cache:    ['cache']
+    cache:    ['cache'],
+    github:   ['github-hub'],
+    mcp:      ['mcp'],
+    processes: ['pm2'],
+    notifications: ['notifications', 'notification-center'],
+    tickets:  ['tickets'],
+    briefing: ['briefing']
   };
 
   // ── Core Cache Store ────────────────────────────────────────────────

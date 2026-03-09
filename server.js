@@ -124,6 +124,17 @@ require("./routes/auth")(app, ctx);
 // Protected routes (requireAuth applied globally after auth routes)
 app.use(requireAuth);
 app.use(audit.auditMiddleware);
+
+// Cache middleware — auto-cache GET API responses, auto-invalidate on writes
+// Excludes: auth, streaming, real-time, and cache endpoints themselves
+app.use('/api', (req, res, next) => {
+  const skip = req.path.startsWith('/auth') || req.path.startsWith('/cache') ||
+    req.path.startsWith('/mcp') || req.path.startsWith('/system') ||
+    req.path.startsWith('/audit');
+  if (skip) return next();
+  neuralCache.cacheMiddleware()(req, res, next);
+});
+app.use('/api', neuralCache.invalidationMiddleware);
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/media", express.static(path.join(__dirname, "media")));
 

@@ -101,7 +101,7 @@ calendar.js          → Calendar + scheduling with AI
 briefing.js          → Daily briefings + AI summaries
 cloudflare.js        → Cloudflare DNS/tunnel management
 credentials.js       → AES-256-GCM credential vault
-mcp.js               → MCP server (Streamable HTTP, 18 tools, 2 resources, 4 prompts) + GUI test endpoint
+mcp.js               → MCP server (Streamable HTTP, 34 tools, 3 resources, 5 prompts) + GUI test endpoint
 ```
 
 ### Lib Modules (16)
