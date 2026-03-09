@@ -219,6 +219,38 @@ module.exports = function (app, ctx) {
       }
     });
 
+    // ── Web Monitoring ──
+
+    server.tool('scrape_webpage', 'Fetch and analyze a webpage — returns text content, title, meta, headers, links, and content hash', {
+      url: z.string().url().describe('URL to scrape'),
+      selector: z.string().optional().describe('Optional CSS selector to extract specific content (basic: tag, #id, .class)'),
+    }, async ({ url, selector }) => {
+      try {
+        const denied = requireMcpRole('viewer', 'scrape_webpage');
+        if (denied) return denied;
+        const uptimeStore = require('../lib/uptime-store');
+        const result = await uptimeStore.scrapeUrl(url, { selector });
+        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      } catch (e) {
+        return { content: [{ type: 'text', text: 'Error scraping: ' + e.message }], isError: true };
+      }
+    });
+
+    server.tool('check_content_changes', 'Check a monitored endpoint for content changes right now', {
+      endpointId: z.string().describe('Uptime endpoint ID to check'),
+    }, async ({ endpointId }) => {
+      try {
+        const denied = requireMcpRole('admin', 'check_content_changes');
+        if (denied) return denied;
+        const uptimeStore = require('../lib/uptime-store');
+        const result = await uptimeStore.checkContent(endpointId);
+        if (result.error) return { content: [{ type: 'text', text: 'Error: ' + result.error }], isError: true };
+        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      } catch (e) {
+        return { content: [{ type: 'text', text: 'Error: ' + e.message }], isError: true };
+      }
+    });
+
     // ── Database ──
 
     server.tool('list_database_tables', 'List all tables in the connected database', {},
@@ -1204,7 +1236,7 @@ module.exports = function (app, ctx) {
       url: mcpUrl,
       transport: 'streamable-http',
       version: '2.1.0',
-      tools: 35,
+      tools: 37,
       resources: 3,
       prompts: 5,
       instructions: {

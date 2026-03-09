@@ -22,7 +22,7 @@ Git author: Bulwark Studio <hello@bulwark.studio>
 - Customers connect from Claude Desktop/Code/Cursor/VS Code on their local machine → Bulwark's remote `/mcp` endpoint.
 - Each customer's MCP server is isolated in their own container sandbox — tenant-scoped, auth-gated.
 - SDK: `@modelcontextprotocol/sdk` + Zod schemas
-- Tools expose: system metrics, Docker, DB, uptime, tickets, deploy, security, notifications
+- Tools expose: system metrics, Docker, DB, uptime, tickets, deploy, security, notifications, web scraping
 - Tool annotations: `readOnlyHint` for safe reads, `destructiveHint` for dangerous actions
 - Resources: server overview, uptime checks, github repos
 - Prompts: diagnose_server, incident_report, security_audit, daily_briefing, repo_analysis
@@ -93,7 +93,7 @@ ftp.js               → FTP server management
 notifications.js     → Notification system
 notification-center.js → Enhanced notification center
 multi-server.js      → Multi-server aggregation
-uptime.js            → Uptime monitoring + checks
+uptime.js            → Uptime monitoring + checks + content-aware web monitoring + scrape
 git-projects.js      → Dynamic multi-repo management, private repo auth (SSH/HTTPS)
 git-enhanced.js      → Git operations, diff, log, branches, AI PR/cleanup/conflicts
 deploy.js            → Deployment pipeline, rollback
@@ -101,7 +101,7 @@ calendar.js          → Calendar + scheduling with AI
 briefing.js          → Daily briefings + AI summaries
 cloudflare.js        → Cloudflare DNS/tunnel management
 credentials.js       → AES-256-GCM credential vault
-mcp.js               → MCP server (Streamable HTTP, 35 tools, 3 resources, 5 prompts) + GUI test endpoint
+mcp.js               → MCP server (Streamable HTTP, 37 tools, 3 resources, 5 prompts) + GUI test endpoint
 ```
 
 ### Lib Modules (16)
@@ -116,7 +116,7 @@ users.js             → PBKDF2 password hashing, user CRUD (users.json)
 totp.js              → TOTP 2FA generation + verification
 sessions.js          → Session token management (sessions.json)
 metrics-collector.js → System metrics collection (CPU, mem, disk)
-uptime-store.js      → Uptime data persistence (JSON)
+uptime-store.js      → Uptime data persistence, content monitoring, web scraping (JSON)
 notification-sender.js → Push notifications via Socket.IO
 neural-cache.js      → Intelligent caching layer
 cloudflare.js        → Cloudflare API client
@@ -338,6 +338,8 @@ Users bring their own AI subscriptions. The app shells out to locally-installed 
 - AI ticket analysis — per-ticket root cause, effort, risk (Tickets view)
 - Daily briefing summaries (Briefing view)
 - Docker image layer inspection + AI optimization (Docker view)
+- Content-aware web monitoring with AI change analysis (Uptime view)
+- Quick web scrape with structured content extraction (Uptime view)
 
 ## Adapter Pattern
 Routes for Docker, Databases, Security, SSL, Cron, FTP proxy through `lib/adapter-client.js` → adapter service (port 4001). When adapter unavailable, returns `{ degraded: true, message: "..." }`.

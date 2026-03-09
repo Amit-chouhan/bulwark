@@ -1,6 +1,6 @@
 /**
  * Bulwark v2.1 — Uptime Intelligence Center
- * Real-time server monitoring, latency tracking, AI incident analysis
+ * Real-time server monitoring, latency tracking, content-aware web monitoring, AI incident analysis
  */
 (function () {
   'use strict';
@@ -23,7 +23,10 @@
     check: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>',
     x: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
     clock: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
-    activity: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>'
+    activity: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+    eye: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
+    hash: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>',
+    edit: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
   };
 
   Views.uptime = {
@@ -121,7 +124,8 @@
         var pct24 = ep.uptime24h !== null ? ep.uptime24h + '%' : 'no data';
         var avgLat = calcAvgLatency(ep.recentChecks || []);
         var downs = (ep.recentChecks || []).filter(function (c) { return !c.ok; }).length;
-        return ep.name + ': 24h uptime ' + pct24 + ', avg latency ' + avgLat + 'ms, ' + downs + ' failures in last 90 checks';
+        var contentInfo = ep.contentMonitor && ep.contentMonitor.enabled ? ', content changes: ' + (ep.contentChanges || 0) : '';
+        return ep.name + ': 24h uptime ' + pct24 + ', avg latency ' + avgLat + 'ms, ' + downs + ' failures in last 90 checks' + contentInfo;
       }).join('. ');
 
       var prompt = 'Analyze this infrastructure uptime data. Servers: ' + (ctx || 'none') +
@@ -148,14 +152,36 @@
     // ── Add Endpoint ─────────────────────────────────────────────────
     addEndpoint: function () {
       Modal.open({
-        title: 'Add Monitored Endpoint', size: 'sm',
-        body: '<div class="form-group"><label class="form-label">Name</label><input id="up-name" class="form-input" placeholder="My API"></div>' +
+        title: 'Add Monitored Endpoint', size: 'md',
+        body:
+          '<div class="form-group"><label class="form-label">Name</label><input id="up-name" class="form-input" placeholder="My API"></div>' +
           '<div class="form-group"><label class="form-label">URL</label><input id="up-url" class="form-input" placeholder="https://api.example.com/health"></div>' +
-          '<div class="form-group"><label class="form-label">Check Interval (seconds)</label><input id="up-interval" class="form-input" type="number" value="60"></div>' +
-          '<div class="form-group"><label class="form-label">Expected Status Code</label><input id="up-status" class="form-input" type="number" value="200"></div>',
+          '<div class="form-row-2">' +
+            '<div class="form-group"><label class="form-label">Check Interval (seconds)</label><input id="up-interval" class="form-input" type="number" value="60"></div>' +
+            '<div class="form-group"><label class="form-label">Expected Status Code</label><input id="up-status" class="form-input" type="number" value="200"></div>' +
+          '</div>' +
+          '<div class="cm-divider"></div>' +
+          '<div class="cm-toggle-row">' +
+            '<label class="form-label" style="margin:0">' + IC.eye + ' Content Monitoring</label>' +
+            '<label class="cm-switch"><input type="checkbox" id="up-cm-enabled"><span class="cm-slider"></span></label>' +
+          '</div>' +
+          '<div id="up-cm-options" class="cm-options" style="display:none">' +
+            '<div class="form-group"><label class="form-label">Monitor Mode</label>' +
+              '<select id="up-cm-mode" class="form-input"><option value="text">Text content (ignore HTML structure)</option><option value="full">Full HTML (detect any change)</option><option value="selector">CSS Selector (monitor specific element)</option></select></div>' +
+            '<div class="form-group" id="up-cm-selector-group" style="display:none"><label class="form-label">CSS Selector</label><input id="up-cm-selector" class="form-input" placeholder="#main-content, .price, h1"></div>' +
+            '<div class="form-group"><label class="form-label">Required Keywords <span style="color:var(--text-tertiary);font-weight:400">(comma-separated)</span></label><input id="up-cm-keywords" class="form-input" placeholder="OK, healthy, running"></div>' +
+            '<div class="form-group"><label class="form-label">Forbidden Keywords <span style="color:var(--text-tertiary);font-weight:400">(comma-separated)</span></label><input id="up-cm-forbidden" class="form-input" placeholder="error, maintenance, 503"></div>' +
+          '</div>',
         footer: '<button class="btn btn-sm" onclick="Modal.close(this.closest(\'.modal-overlay\'))">Cancel</button><button class="btn btn-sm btn-primary" id="up-save">Add Endpoint</button>'
       });
       setTimeout(function () {
+        var toggle = document.getElementById('up-cm-enabled');
+        var opts = document.getElementById('up-cm-options');
+        var modeSelect = document.getElementById('up-cm-mode');
+        var selectorGroup = document.getElementById('up-cm-selector-group');
+        if (toggle) toggle.onchange = function () { opts.style.display = toggle.checked ? '' : 'none'; };
+        if (modeSelect) modeSelect.onchange = function () { selectorGroup.style.display = modeSelect.value === 'selector' ? '' : 'none'; };
+
         var btn = document.getElementById('up-save');
         if (btn) btn.onclick = function () {
           var name = (document.getElementById('up-name') || {}).value;
@@ -163,13 +189,262 @@
           var interval = parseInt((document.getElementById('up-interval') || {}).value) || 60;
           var expectedStatus = parseInt((document.getElementById('up-status') || {}).value) || 200;
           if (!name || !url) { Toast.warning('Name and URL required'); return; }
-          fetch('/api/uptime/endpoints', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name, url: url, interval: interval, expectedStatus: expectedStatus }) })
+
+          var payload = { name: name, url: url, interval: interval, expectedStatus: expectedStatus };
+
+          if (toggle && toggle.checked) {
+            var mode = (document.getElementById('up-cm-mode') || {}).value || 'text';
+            var selector = (document.getElementById('up-cm-selector') || {}).value || '';
+            var keywords = parseCommaSep((document.getElementById('up-cm-keywords') || {}).value);
+            var forbidden = parseCommaSep((document.getElementById('up-cm-forbidden') || {}).value);
+            payload.contentMonitor = {
+              enabled: true,
+              mode: mode,
+              selector: mode === 'selector' ? selector : '',
+              keywords: keywords,
+              forbidden: forbidden
+            };
+          }
+
+          fetch('/api/uptime/endpoints', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
             .then(function (r) { return r.json(); }).then(function (d) {
               if (d.error) { Toast.error(d.error); return; }
               Toast.success('Endpoint added');
               Modal.close(btn.closest('.modal-overlay'));
               loadEndpoints();
             }).catch(function () { Toast.error('Failed'); });
+        };
+      }, 50);
+    },
+
+    // ── Edit Endpoint (toggle content monitoring) ─────────────────────
+    editEndpoint: function (id) {
+      var ep = uptimeData.find(function (e) { return e.id === id; });
+      if (!ep) return;
+      var cm = ep.contentMonitor || {};
+
+      Modal.open({
+        title: 'Edit: ' + esc(ep.name), size: 'md',
+        body:
+          '<div class="form-group"><label class="form-label">Name</label><input id="ep-name" class="form-input" value="' + esc(ep.name) + '"></div>' +
+          '<div class="form-group"><label class="form-label">URL</label><input id="ep-url" class="form-input" value="' + esc(ep.url) + '"></div>' +
+          '<div class="form-row-2">' +
+            '<div class="form-group"><label class="form-label">Interval (s)</label><input id="ep-interval" class="form-input" type="number" value="' + (ep.interval || 60) + '"></div>' +
+            '<div class="form-group"><label class="form-label">Expected Status</label><input id="ep-status" class="form-input" type="number" value="' + (ep.expectedStatus || 200) + '"></div>' +
+          '</div>' +
+          '<div class="cm-divider"></div>' +
+          '<div class="cm-toggle-row">' +
+            '<label class="form-label" style="margin:0">' + IC.eye + ' Content Monitoring</label>' +
+            '<label class="cm-switch"><input type="checkbox" id="ep-cm-enabled"' + (cm.enabled ? ' checked' : '') + '><span class="cm-slider"></span></label>' +
+          '</div>' +
+          '<div id="ep-cm-options" class="cm-options"' + (cm.enabled ? '' : ' style="display:none"') + '>' +
+            '<div class="form-group"><label class="form-label">Monitor Mode</label>' +
+              '<select id="ep-cm-mode" class="form-input"><option value="text"' + (cm.mode === 'text' || !cm.mode ? ' selected' : '') + '>Text content</option><option value="full"' + (cm.mode === 'full' ? ' selected' : '') + '>Full HTML</option><option value="selector"' + (cm.mode === 'selector' ? ' selected' : '') + '>CSS Selector</option></select></div>' +
+            '<div class="form-group" id="ep-cm-selector-group"' + (cm.mode === 'selector' ? '' : ' style="display:none"') + '><label class="form-label">CSS Selector</label><input id="ep-cm-selector" class="form-input" value="' + esc(cm.selector || '') + '"></div>' +
+            '<div class="form-group"><label class="form-label">Required Keywords</label><input id="ep-cm-keywords" class="form-input" value="' + esc((cm.keywords || []).join(', ')) + '"></div>' +
+            '<div class="form-group"><label class="form-label">Forbidden Keywords</label><input id="ep-cm-forbidden" class="form-input" value="' + esc((cm.forbidden || []).join(', ')) + '"></div>' +
+          '</div>',
+        footer: '<button class="btn btn-sm" onclick="Modal.close(this.closest(\'.modal-overlay\'))">Cancel</button><button class="btn btn-sm btn-primary" id="ep-save">Save</button>'
+      });
+      setTimeout(function () {
+        var toggle = document.getElementById('ep-cm-enabled');
+        var opts = document.getElementById('ep-cm-options');
+        var modeSelect = document.getElementById('ep-cm-mode');
+        var selectorGroup = document.getElementById('ep-cm-selector-group');
+        if (toggle) toggle.onchange = function () { opts.style.display = toggle.checked ? '' : 'none'; };
+        if (modeSelect) modeSelect.onchange = function () { selectorGroup.style.display = modeSelect.value === 'selector' ? '' : 'none'; };
+
+        var btn = document.getElementById('ep-save');
+        if (btn) btn.onclick = function () {
+          var payload = {
+            name: (document.getElementById('ep-name') || {}).value || ep.name,
+            url: (document.getElementById('ep-url') || {}).value || ep.url,
+            interval: parseInt((document.getElementById('ep-interval') || {}).value) || 60,
+            expectedStatus: parseInt((document.getElementById('ep-status') || {}).value) || 200
+          };
+
+          if (toggle && toggle.checked) {
+            var mode = (document.getElementById('ep-cm-mode') || {}).value || 'text';
+            payload.contentMonitor = {
+              enabled: true,
+              mode: mode,
+              selector: mode === 'selector' ? (document.getElementById('ep-cm-selector') || {}).value || '' : '',
+              keywords: parseCommaSep((document.getElementById('ep-cm-keywords') || {}).value),
+              forbidden: parseCommaSep((document.getElementById('ep-cm-forbidden') || {}).value)
+            };
+          } else {
+            payload.contentMonitor = { enabled: false };
+          }
+
+          fetch('/api/uptime/endpoints/' + encodeURIComponent(id), {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+          }).then(function (r) { return r.json(); }).then(function (d) {
+            if (d.error) { Toast.error(d.error); return; }
+            Toast.success('Endpoint updated');
+            Modal.close(btn.closest('.modal-overlay'));
+            loadEndpoints();
+          }).catch(function () { Toast.error('Failed'); });
+        };
+      }, 50);
+    },
+
+    // ── Content History Modal ─────────────────────────────────────────
+    contentHistory: function (id) {
+      var ep = uptimeData.find(function (e) { return e.id === id; });
+      if (!ep) return;
+
+      Modal.open({
+        title: IC.hash + ' Content History: ' + esc(ep.name), size: 'lg',
+        body: '<div id="cm-history-body"><div class="briefing-shimmer" style="width:80%"></div></div>',
+        footer: '<button class="btn btn-sm btn-cyan" id="cm-check-now">Check Now</button>' +
+          '<button class="btn btn-sm btn-cyan" id="cm-ai-analyze" style="margin-left:8px">AI Analyze</button>' +
+          '<button class="btn btn-sm" onclick="Modal.close(this.closest(\'.modal-overlay\'))" style="margin-left:auto">Close</button>'
+      });
+
+      fetch('/api/uptime/content/' + encodeURIComponent(id))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var body = document.getElementById('cm-history-body');
+          if (!body) return;
+          var history = d.history || [];
+
+          if (!history.length) {
+            body.innerHTML = '<div class="cm-empty">No content changes detected yet. Content is being monitored every 60 seconds.</div>';
+          } else {
+            body.innerHTML =
+              '<div class="cm-stats-row">' +
+                '<div class="cm-stat"><span class="cm-stat-val" style="color:#22d3ee">' + history.length + '</span><span class="cm-stat-label">Changes</span></div>' +
+                '<div class="cm-stat"><span class="cm-stat-val" style="color:#f59e0b">' + timeAgo(history[history.length - 1].ts) + '</span><span class="cm-stat-label">Last Change</span></div>' +
+                '<div class="cm-stat"><span class="cm-stat-val">' + formatBytes(history[history.length - 1].size) + '</span><span class="cm-stat-label">Current Size</span></div>' +
+              '</div>' +
+              '<div class="cm-timeline">' +
+              history.slice().reverse().slice(0, 50).map(function (h) {
+                return '<div class="cm-timeline-item">' +
+                  '<div class="cm-timeline-dot"></div>' +
+                  '<div class="cm-timeline-content">' +
+                    '<div class="cm-timeline-header">' +
+                      '<span class="cm-timeline-time">' + new Date(h.ts).toLocaleString() + '</span>' +
+                      '<span class="cm-timeline-hash" title="' + esc(h.hash) + '">' + (h.prevHash ? h.prevHash.substring(0, 8) + ' &rarr; ' : '') + h.hash.substring(0, 8) + '</span>' +
+                      '<span class="cm-timeline-size">' + formatBytes(h.size) + '</span>' +
+                    '</div>' +
+                    (h.snippet ? '<div class="cm-timeline-snippet">' + esc(h.snippet.substring(0, 200)) + '</div>' : '') +
+                  '</div>' +
+                '</div>';
+              }).join('') +
+              '</div>';
+          }
+        })
+        .catch(function () {
+          var body = document.getElementById('cm-history-body');
+          if (body) body.innerHTML = '<div class="cm-empty">Failed to load content history</div>';
+        });
+
+      // Check Now button
+      setTimeout(function () {
+        var checkBtn = document.getElementById('cm-check-now');
+        if (checkBtn) checkBtn.onclick = function () {
+          checkBtn.disabled = true;
+          checkBtn.textContent = 'Checking...';
+          fetch('/api/uptime/content/' + encodeURIComponent(id) + '/check', { method: 'POST' })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+              if (d.error) { Toast.error(d.error); checkBtn.disabled = false; checkBtn.textContent = 'Check Now'; return; }
+              var check = d.check || {};
+              if (check.contentChanged) {
+                Toast.warning('Content has changed!');
+              } else {
+                Toast.success('No content change detected');
+              }
+              checkBtn.disabled = false;
+              checkBtn.textContent = 'Check Now';
+              // Reload the history
+              Views.uptime.contentHistory(id);
+              loadEndpoints();
+            }).catch(function () { Toast.error('Check failed'); checkBtn.disabled = false; checkBtn.textContent = 'Check Now'; });
+        };
+
+        // AI Analyze button
+        var aiBtn = document.getElementById('cm-ai-analyze');
+        if (aiBtn) aiBtn.onclick = function () {
+          aiBtn.disabled = true;
+          aiBtn.textContent = 'Analyzing...';
+          fetch('/api/uptime/content/ai-analyze', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpointId: id })
+          }).then(function (r) { return r.json(); }).then(function (d) {
+            aiBtn.disabled = false;
+            aiBtn.textContent = 'AI Analyze';
+            var analysis = d.analysis || d.error || 'Analysis unavailable';
+            // Append AI analysis to the modal
+            var body = document.getElementById('cm-history-body');
+            if (body) {
+              var existing = body.querySelector('.cm-ai-result');
+              if (existing) existing.remove();
+              var div = document.createElement('div');
+              div.className = 'cm-ai-result';
+              div.innerHTML = '<div class="cm-ai-header">' + IC.brain + ' AI Analysis</div><div class="cm-ai-text"></div>';
+              body.insertBefore(div, body.firstChild);
+              typeWriter(div.querySelector('.cm-ai-text'), analysis);
+            }
+          }).catch(function () {
+            aiBtn.disabled = false;
+            aiBtn.textContent = 'AI Analyze';
+            Toast.error('Analysis failed');
+          });
+        };
+      }, 50);
+    },
+
+    // ── Quick Scrape (one-off URL analysis) ───────────────────────────
+    quickScrape: function () {
+      Modal.open({
+        title: IC.globe + ' Quick Web Scrape', size: 'md',
+        body:
+          '<div class="form-group"><label class="form-label">URL</label><input id="qs-url" class="form-input" placeholder="https://example.com"></div>' +
+          '<div class="form-group"><label class="form-label">CSS Selector <span style="color:var(--text-tertiary);font-weight:400">(optional)</span></label><input id="qs-selector" class="form-input" placeholder="#content, .main, h1"></div>' +
+          '<div id="qs-result" style="display:none"></div>',
+        footer: '<button class="btn btn-sm btn-cyan" id="qs-go">Scrape</button><button class="btn btn-sm" onclick="Modal.close(this.closest(\'.modal-overlay\'))" style="margin-left:8px">Close</button>'
+      });
+      setTimeout(function () {
+        var btn = document.getElementById('qs-go');
+        if (btn) btn.onclick = function () {
+          var url = (document.getElementById('qs-url') || {}).value;
+          var selector = (document.getElementById('qs-selector') || {}).value;
+          if (!url) { Toast.warning('URL required'); return; }
+          btn.disabled = true;
+          btn.textContent = 'Scraping...';
+          var resultEl = document.getElementById('qs-result');
+          if (resultEl) { resultEl.style.display = ''; resultEl.innerHTML = '<div class="briefing-shimmer" style="width:90%"></div>'; }
+
+          fetch('/api/uptime/scrape', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: url, selector: selector })
+          }).then(function (r) { return r.json(); }).then(function (d) {
+            btn.disabled = false;
+            btn.textContent = 'Scrape';
+            if (d.error) { resultEl.innerHTML = '<div class="cm-empty" style="color:#ff6b2b">' + esc(d.error) + '</div>'; return; }
+
+            resultEl.innerHTML =
+              '<div class="cm-divider"></div>' +
+              '<div class="qs-meta">' +
+                '<div class="qs-meta-row"><span class="qs-meta-label">Status</span><span style="color:' + (d.status === 200 ? '#22d3ee' : '#ff6b2b') + '">' + d.status + '</span></div>' +
+                '<div class="qs-meta-row"><span class="qs-meta-label">Title</span><span>' + esc(d.title || '—') + '</span></div>' +
+                '<div class="qs-meta-row"><span class="qs-meta-label">Size</span><span>' + formatBytes(d.contentLength) + '</span></div>' +
+                '<div class="qs-meta-row"><span class="qs-meta-label">Hash</span><span class="qs-hash">' + esc(d.contentHash) + '</span></div>' +
+                '<div class="qs-meta-row"><span class="qs-meta-label">Server</span><span>' + esc(d.headers.server || '—') + '</span></div>' +
+                '<div class="qs-meta-row"><span class="qs-meta-label">Type</span><span>' + esc(d.headers.contentType || '—') + '</span></div>' +
+                (d.metaDescription ? '<div class="qs-meta-row"><span class="qs-meta-label">Description</span><span>' + esc(d.metaDescription) + '</span></div>' : '') +
+              '</div>' +
+              '<div class="form-group" style="margin-top:12px"><label class="form-label">Extracted Text</label>' +
+                '<div class="qs-content">' + esc(d.textContent.substring(0, 2000)) + '</div>' +
+              '</div>' +
+              (d.links.length ? '<div class="form-group"><label class="form-label">Links (' + d.links.length + ')</label>' +
+                '<div class="qs-links">' + d.links.slice(0, 20).map(function (l) { return '<div class="qs-link">' + esc(l) + '</div>'; }).join('') + '</div></div>' : '');
+          }).catch(function () {
+            btn.disabled = false;
+            btn.textContent = 'Scrape';
+            resultEl.innerHTML = '<div class="cm-empty" style="color:#ff6b2b">Scrape failed</div>';
+          });
         };
       }, 50);
     }
@@ -222,10 +497,17 @@
       serverData.forEach(function (s) { if (s.latency > 0) { avgLatency += s.latency; latCount++; } });
       avgLatency = latCount ? Math.round(avgLatency / latCount) : 0;
 
+      // Count content-monitored endpoints with recent changes
+      var contentAlerts = uptimeData.filter(function (ep) {
+        return ep.contentMonitor && ep.contentMonitor.enabled && ep.lastContentChange &&
+          (Date.now() - ep.lastContentChange) < 3600000;
+      }).length;
+
       statsEl.innerHTML =
         bannerStat(healthy, 'Healthy', '#22d3ee') +
         bannerStat(total - healthy, 'Down', total - healthy > 0 ? '#ff6b2b' : 'var(--text-secondary)') +
-        bannerStat(avgLatency + 'ms', 'Avg Latency', avgLatency > 500 ? '#ff6b2b' : '#22d3ee');
+        bannerStat(avgLatency + 'ms', 'Avg Latency', avgLatency > 500 ? '#ff6b2b' : '#22d3ee') +
+        (contentAlerts > 0 ? bannerStat(contentAlerts, 'Content Alerts', '#f59e0b') : '');
     }
   }
 
@@ -350,12 +632,14 @@
       el.innerHTML = '<div class="uptime-empty">' +
         '<div class="uptime-empty-icon">' + IC.globe + '</div>' +
         '<div>No endpoints monitored yet</div>' +
-        '<div style="font-size:11px;color:var(--text-secondary);margin-top:4px">Add URLs to monitor their availability and response times</div>' +
+        '<div style="font-size:11px;color:var(--text-secondary);margin-top:4px">Add URLs to monitor availability, response times, and content changes</div>' +
+        '<button class="btn btn-sm btn-cyan" onclick="Views.uptime.quickScrape()" style="margin-top:10px">' + IC.globe + ' Quick Scrape</button>' +
       '</div>';
       return;
     }
 
-    el.innerHTML = uptimeData.map(function (ep) {
+    el.innerHTML = '<div style="margin-bottom:12px;text-align:right"><button class="btn btn-sm" onclick="Views.uptime.quickScrape()" style="gap:4px">' + IC.globe + ' Quick Scrape</button></div>' +
+      uptimeData.map(function (ep) {
       var pct24 = ep.uptime24h;
       var pct7d = ep.uptime7d;
       var pct30d = ep.uptime30d;
@@ -363,6 +647,29 @@
       var avgLat = calcAvgLatency(checks);
       var lastCheck = checks.length ? checks[checks.length - 1] : null;
       var isUp = lastCheck ? lastCheck.ok : null;
+      var hasCM = ep.contentMonitor && ep.contentMonitor.enabled;
+
+      // Content monitoring status
+      var cmBadge = '';
+      if (hasCM) {
+        var lastChange = ep.lastContentChange;
+        var changeCount = ep.contentChanges || 0;
+        var recentChange = lastChange && (Date.now() - lastChange) < 3600000;
+
+        // Check latest keyword status
+        var kwIssue = false;
+        if (lastCheck) {
+          if (lastCheck.keywordHits) kwIssue = lastCheck.keywordHits.some(function (k) { return !k.found; });
+          if (lastCheck.forbiddenHits) kwIssue = kwIssue || lastCheck.forbiddenHits.some(function (k) { return k.found; });
+        }
+
+        var cmColor = kwIssue ? '#ff6b2b' : recentChange ? '#f59e0b' : '#22d3ee';
+        var cmLabel = kwIssue ? 'Keyword Alert' : recentChange ? 'Changed ' + timeAgo(lastChange) : changeCount > 0 ? changeCount + ' changes' : 'Monitoring';
+        cmBadge = '<div class="ep-cm-badge" style="border-color:' + cmColor + ';color:' + cmColor + '" onclick="event.stopPropagation();Views.uptime.contentHistory(\'' + esc(ep.id) + '\')">' +
+          '<span class="ep-cm-dot" style="background:' + cmColor + '"></span>' +
+          IC.eye + ' ' + cmLabel +
+        '</div>';
+      }
 
       return '<div class="ep-card">' +
         '<div class="ep-card-header">' +
@@ -373,13 +680,21 @@
             '<div class="ep-card-name">' + esc(ep.name) + '</div>' +
             '<div class="ep-card-url">' + esc(ep.url) + '</div>' +
           '</div>' +
-          '<button class="ep-delete" onclick="Views.uptime.deleteEp(\'' + esc(ep.id) + '\')" title="Delete">' + IC.trash + '</button>' +
+          '<div class="ep-card-actions">' +
+            '<button class="ep-action-btn" onclick="Views.uptime.editEndpoint(\'' + esc(ep.id) + '\')" title="Edit">' + IC.edit + '</button>' +
+            '<button class="ep-action-btn ep-action-delete" onclick="Views.uptime.deleteEp(\'' + esc(ep.id) + '\')" title="Delete">' + IC.trash + '</button>' +
+          '</div>' +
         '</div>' +
+        cmBadge +
         '<div class="ep-metrics">' +
           epMetric(fmtPct(pct24), '24h', pctColor(pct24)) +
           epMetric(fmtPct(pct7d), '7d', pctColor(pct7d)) +
           epMetric(fmtPct(pct30d), '30d', pctColor(pct30d)) +
           epMetric(avgLat + 'ms', 'Latency', avgLat > 500 ? '#ff6b2b' : '#22d3ee') +
+          (hasCM && lastCheck && lastCheck.contentHash ?
+            epMetric(lastCheck.contentHash.substring(0, 8), 'Hash', lastCheck.contentChanged ? '#f59e0b' : '#22d3ee') : '') +
+          (hasCM && lastCheck && lastCheck.contentSize ?
+            epMetric(formatBytes(lastCheck.contentSize), 'Size', 'var(--text-secondary)') : '') +
         '</div>' +
         '<div class="ep-bar-wrap">' +
           '<div class="ep-bar-label">Last 90 checks</div>' +
@@ -403,9 +718,11 @@
     var recent = checks.slice(-90);
     return recent.map(function (c) {
       var up = c.ok;
-      var color = up ? '#22d3ee' : '#ff6b2b';
-      var opacity = up ? '0.7' : '1';
-      return '<div class="ep-bar-tick" style="background:' + color + ';opacity:' + opacity + '" title="' + (c.latency || 0) + 'ms — ' + (up ? 'OK' : 'FAIL') + '"></div>';
+      var hasContentChange = c.contentChanged;
+      var color = !up ? '#ff6b2b' : hasContentChange ? '#f59e0b' : '#22d3ee';
+      var opacity = up && !hasContentChange ? '0.7' : '1';
+      var title = (c.latency || 0) + 'ms' + (up ? ' OK' : ' FAIL') + (hasContentChange ? ' [content changed]' : '');
+      return '<div class="ep-bar-tick" style="background:' + color + ';opacity:' + opacity + '" title="' + title + '"></div>';
     }).join('');
   }
 
@@ -436,6 +753,27 @@
     if (hours >= 24) return Math.floor(hours / 24) + 'd ' + Math.floor(hours % 24) + 'h';
     if (hours >= 1) return hours.toFixed(1) + 'h';
     return Math.round(hours * 60) + 'm';
+  }
+
+  function formatBytes(bytes) {
+    if (!bytes || bytes < 0) return '0 B';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+  }
+
+  function timeAgo(ts) {
+    if (!ts) return '';
+    var diff = Date.now() - ts;
+    if (diff < 60000) return Math.round(diff / 1000) + 's ago';
+    if (diff < 3600000) return Math.round(diff / 60000) + 'm ago';
+    if (diff < 86400000) return Math.round(diff / 3600000) + 'h ago';
+    return Math.round(diff / 86400000) + 'd ago';
+  }
+
+  function parseCommaSep(str) {
+    if (!str) return [];
+    return str.split(',').map(function (s) { return s.trim(); }).filter(function (s) { return s.length > 0; });
   }
 
   function esc(str) { var d = document.createElement('div'); d.appendChild(document.createTextNode(str || '')); return d.innerHTML; }

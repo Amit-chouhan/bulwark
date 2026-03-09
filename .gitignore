@@ -30,6 +30,7 @@ data/repos/
 data/.git-ssh-key-*
 data/users.json
 data/sessions.json
+data/uptime.json
 cookies.txt
 
 # ── Personal notes & local overrides ─────────────────────────────────
